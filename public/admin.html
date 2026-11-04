@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Orders · Ali's Fresh Meats</title>
+  <meta name="robots" content="noindex">
+  <link rel="icon" href="/logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Oswald:wght@500;600&display=swap" rel="stylesheet">
+  <style>
+    :root { --bg:#f6f1e7; --card:#fff; --ink:#2a2118; --muted:#857560; --line:#e7dcc8; --brown:#5a3518; --gold:#f0bf4c; --red:#c62a1f; --green:#2e7d46; --amber:#a86a00; --blue:#2457a6; color-scheme: light; }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.45 'Archivo', system-ui, sans-serif; }
+    button, input, select, textarea { font:inherit; color:inherit; }
+    button { cursor:pointer; }
+    .bar { background:#1b1917; color:#f5ecd9; position:sticky; top:0; z-index:10; }
+    .bar .in { max-width:1200px; margin:0 auto; display:flex; align-items:center; gap:14px; padding:10px 16px; }
+    .bar img { width:54px; }
+    .bar h1 { font:600 18px 'Oswald', sans-serif; letter-spacing:.06em; text-transform:uppercase; margin:0; }
+    .nav { display:flex; gap:4px; margin-left:auto; flex-wrap:wrap; }
+    .nav button { background:transparent; border:0; color:#cfc4b2; padding:8px 12px; border-radius:999px; font-weight:600; font-size:14px; }
+    .nav button.on { background:var(--gold); color:#1b1917; }
+    main { max-width:1200px; margin:0 auto; padding:18px 16px 80px; }
+    .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:14px; }
+    h2 { font:600 20px 'Oswald', sans-serif; text-transform:uppercase; letter-spacing:.04em; margin:0 0 12px; }
+    h3 { font-size:14px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin:18px 0 8px; }
+    .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    .grow { flex:1; }
+    .btn { border:1.5px solid var(--ink); background:#fff; border-radius:10px; padding:8px 14px; font-weight:700; font-size:14px; }
+    .btn.pri { background:var(--ink); color:#fff; }
+    .btn.red { border-color:var(--red); color:var(--red); }
+    .btn.sm { padding:5px 10px; font-size:13px; }
+    .btn:disabled { opacity:.5; cursor:not-allowed; }
+    .inp, select.inp { padding:9px 11px; border:1.5px solid var(--line); border-radius:9px; background:#fff; min-width:0; }
+    .inp:focus { outline:none; border-color:var(--brown); }
+    label.f { display:block; font-size:13px; font-weight:600; color:#5c4a35; }
+    label.f .inp { display:block; width:100%; margin-top:4px; font-weight:400; color:var(--ink); }
+    label.f small { display:block; font-weight:400; color:var(--muted); margin-top:3px; }
+    .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px; }
+    .chips { display:flex; gap:6px; flex-wrap:wrap; }
+    .chip { border:1.5px solid var(--line); background:#fff; border-radius:999px; padding:6px 12px; font-weight:600; font-size:13px; }
+    .chip.on { background:var(--ink); border-color:var(--ink); color:#fff; }
+    .tag { display:inline-block; padding:2px 9px; border-radius:999px; font-size:12px; font-weight:700; white-space:nowrap; }
+    .t-pay { background:#eee6d8; color:#6d5a40; } .t-prep { background:#fff1cc; color:var(--amber); } .t-drv { background:#dfeafc; color:var(--blue); }
+    .t-done { background:#dcf2e3; color:var(--green); } .t-bad { background:#fde2df; color:var(--red); }
+    table.list { width:100%; border-collapse:collapse; }
+    table.list th { text-align:left; font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); padding:8px; border-bottom:1.5px solid var(--line); }
+    table.list td { padding:10px 8px; border-bottom:1px solid var(--line); vertical-align:middle; }
+    table.list tr.click { cursor:pointer; } table.list tr.click:hover td { background:#fbf7ef; }
+    table.list tr.new td { animation:flash 2s ease 3; }
+    @keyframes flash { 50% { background:#fff4cf; } }
+    .num { font-variant-numeric:tabular-nums; text-align:right; }
+    .warn { color:var(--red); font-weight:700; font-size:13px; }
+    .muted { color:var(--muted); font-size:13px; }
+    .drawer { position:fixed; inset:0; z-index:30; display:none; }
+    .drawer.show { display:block; }
+    .drawer .scrim { position:absolute; inset:0; background:rgba(0,0,0,.4); }
+    .drawer .panel { position:absolute; right:0; top:0; bottom:0; width:min(100%,560px); background:var(--bg); overflow-y:auto; padding:18px; box-shadow:-10px 0 30px rgba(0,0,0,.25); }
+    .kv { display:grid; grid-template-columns:120px 1fr; gap:6px 12px; font-size:14px; }
+    .kv dt { color:var(--muted); } .kv dd { margin:0; word-break:break-word; }
+    .log { font-size:13px; color:#5c4a35; padding-left:18px; margin:0; }
+    .log li { margin:3px 0; }
+    .login { max-width:360px; margin:12vh auto; text-align:center; }
+    .login img { width:120px; }
+    .toast { position:fixed; left:50%; bottom:24px; transform:translateX(-50%); background:#1b1917; color:#fff; padding:11px 18px; border-radius:10px; z-index:60; display:none; max-width:92vw; }
+    .ok { color:var(--green); font-weight:700; } .bad { color:var(--red); font-weight:700; }
+    .ptable td { padding:6px 4px; } .ptable .inp { width:100%; padding:7px 8px; }
+    .branch { border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:10px; background:#fcfaf5; }
+    .hidden { display:none !important; }
+    @media (max-width:700px) { .hide-sm { display:none; } .kv { grid-template-columns:96px 1fr; } }
+  </style>
+</head>
+<body>
+  <div id="loginView" class="login hidden">
+    <img src="/logo.png" alt="Ali's">
+    <h2 style="margin-top:14px">Staff dashboard</h2>
+    <form id="loginForm" class="card">
+      <input class="inp" id="pass" type="password" placeholder="Passcode" autocomplete="current-password" style="width:100%">
+      <button class="btn pri" style="width:100%;margin-top:10px">Log in</button>
+      <p class="warn" id="loginErr"></p>
+    </form>
+  </div>
+
+  <div id="appView" class="hidden">
+    <div class="bar"><div class="in">
+      <img src="/logo.png" alt="Ali's"><h1 class="hide-sm">Orders</h1>
+      <nav class="nav" id="nav">
+        <button data-tab="orders" class="on">Orders</button><button data-tab="products">Prices</button>
+        <button data-tab="coupons">Coupons</button><button data-tab="members">Members</button><button data-tab="settings">Settings</button>
+      </nav>
+    </div></div>
+    <main>
+      <section data-view="orders">
+        <div class="row" style="margin-bottom:12px">
+          <div class="chips" id="filters">
+            <button class="chip on" data-f="active">Active</button><button class="chip" data-f="today">Today</button>
+            <button class="chip" data-f="problem">Needs attention</button><button class="chip" data-f="unpaid">Unpaid</button><button class="chip" data-f="all">All</button>
+          </div>
+          <input class="inp grow" id="search" placeholder="Search order no, name or phone" style="min-width:180px">
+          <button class="btn sm" id="soundBtn">🔔 Turn on order alert sound</button>
+        </div>
+        <div class="card" style="padding:6px 8px"><table class="list"><thead><tr><th>Order</th><th class="hide-sm">Time</th><th>Customer</th><th class="hide-sm">Branch</th><th>Status</th><th class="num">Total</th></tr></thead><tbody id="orderRows"></tbody></table>
+          <p class="muted" id="ordersEmpty" style="padding:14px;text-align:center"></p></div>
+      </section>
+
+      <section data-view="products" class="hidden">
+        <div class="card">
+          <div class="row"><h2 class="grow" style="margin:0">Prices &amp; menu</h2><button class="btn" id="addProduct">+ Add product</button><button class="btn pri" id="saveProducts">Save prices</button></div>
+          <p class="muted">Change prices any time (seasonal prices). Untick “On sale” to hide sold-out items. Changes show on the shop as soon as you save.</p>
+          <div style="overflow-x:auto"><table class="list ptable"><thead><tr><th>Category</th><th>Name</th><th class="hide-sm">Note</th><th>Price (RM)</th><th>Per</th><th>On sale</th><th></th></tr></thead><tbody id="productRows"></tbody></table></div>
+        </div>
+      </section>
+
+      <section data-view="coupons" class="hidden">
+        <div class="card">
+          <h2 id="couponFormTitle">New coupon</h2>
+          <form id="couponForm" class="grid">
+            <label class="f">Code<input class="inp" name="code" placeholder="e.g. RAYA10" required style="text-transform:uppercase"></label>
+            <label class="f">Type<select class="inp" name="type"><option value="percent">% off</option><option value="fixed">RM off</option></select></label>
+            <label class="f">Discount<input class="inp" name="value" type="number" step="0.01" min="0" required placeholder="10"></label>
+            <label class="f">Minimum spend (RM)<input class="inp" name="minSpend" type="number" step="0.01" min="0" placeholder="0 = none"></label>
+            <label class="f">Max discount (RM)<input class="inp" name="maxDiscount" type="number" step="0.01" min="0" placeholder="0 = no cap"><small>For % coupons</small></label>
+            <label class="f">Starts on<input class="inp" name="startsOn" type="date"></label>
+            <label class="f">Ends on<input class="inp" name="endsOn" type="date"></label>
+            <label class="f">Total uses allowed<input class="inp" name="maxUses" type="number" min="0" placeholder="0 = unlimited"></label>
+            <label class="f">Only for these phone numbers<input class="inp" name="phones" placeholder="optional, comma separated"><small>Leave empty for everyone</small></label>
+            <label class="f">Note<input class="inp" name="note" placeholder="optional, staff only"></label>
+            <label class="f" style="align-self:center"><input type="checkbox" name="oncePerCustomer"> One use per customer</label>
+            <label class="f" style="align-self:center"><input type="checkbox" name="active" checked> Active</label>
+          </form>
+          <div class="row" style="margin-top:12px"><button class="btn pri" id="saveCoupon">Save coupon</button><button class="btn" id="resetCoupon">Clear form</button></div>
+        </div>
+        <div class="card" style="padding:6px 8px"><table class="list"><thead><tr><th>Code</th><th>Discount</th><th class="hide-sm">Conditions</th><th>Used</th><th>Status</th><th></th></tr></thead><tbody id="couponRows"></tbody></table></div>
+      </section>
+
+      <section data-view="members" class="hidden">
+        <div class="card">
+          <h2>Member discounts</h2>
+          <p class="muted">Regular customers get their discount automatically when they check out with this phone number.</p>
+          <form id="memberForm" class="grid">
+            <label class="f">Phone<input class="inp" name="phone" required placeholder="012-345 6789"></label>
+            <label class="f">Name<input class="inp" name="name" placeholder="Customer name"></label>
+            <label class="f">Discount %<input class="inp" name="discountPct" type="number" step="0.5" min="0" max="100" required placeholder="5"></label>
+            <label class="f">Note<input class="inp" name="note" placeholder="optional"></label>
+          </form>
+          <div class="row" style="margin-top:12px"><button class="btn pri" id="saveMember">Save member</button><button class="btn" id="resetMember">Clear form</button></div>
+        </div>
+        <div class="card" style="padding:6px 8px"><table class="list"><thead><tr><th>Phone</th><th>Name</th><th>Discount</th><th class="hide-sm">Note</th><th></th></tr></thead><tbody id="memberRows"></tbody></table></div>
+      </section>
+
+      <section data-view="settings" class="hidden">
+        <div class="card"><h2>Connections</h2><div id="status" class="grid"></div>
+          <div class="row" style="margin-top:12px"><button class="btn" id="llmSetup">Connect Lalamove updates</button><span class="muted" id="llmSetupOut"></span></div>
+          <div id="llmServices" class="muted" style="margin-top:8px"></div>
+        </div>
+        <form id="settingsForm">
+          <div class="card"><h2>Ordering</h2>
+            <div class="grid">
+              <label class="f"><input type="checkbox" name="acceptingOrders"> Accepting online orders</label>
+              <label class="f">Open from<input class="inp" type="time" name="hours.open"></label>
+              <label class="f">Last order at<input class="inp" type="time" name="hours.close"></label>
+              <label class="f">Minimum order (RM)<input class="inp" type="number" step="0.01" min="0" name="minOrder"></label>
+            </div>
+            <h3>Closed on</h3><div class="chips" id="closedDays"></div>
+            <h3>Message on checkout</h3><input class="inp" name="checkoutNote" style="width:100%">
+            <h3>Discounts</h3><label class="f"><input type="checkbox" name="stackDiscounts"> Members can use a coupon on top of their member discount <small>Off: they get whichever discount is bigger</small></label>
+          </div>
+          <div class="card"><h2>Delivery (Lalamove)</h2>
+            <div class="grid">
+              <label class="f">Prep time before pickup (minutes)<input class="inp" type="number" min="0" name="prepMinutes"><small>Lalamove is booked right after payment; the driver is scheduled to arrive this many minutes later. 0 = straight away.</small></label>
+              <label class="f">Vehicle<input class="inp" name="serviceType" placeholder="MOTORCYCLE"></label>
+              <label class="f">Use a bigger vehicle above (kg)<input class="inp" type="number" min="0" step="0.5" name="heavyOrderKg"></label>
+              <label class="f">Bigger vehicle<input class="inp" name="heavyServiceType" placeholder="CAR"></label>
+              <label class="f">Special requests<input class="inp" name="specialRequests" placeholder="optional, e.g. insulated bag key"><small>Keys from “Connect Lalamove updates” list</small></label>
+              <label class="f">Add to delivery fee (RM)<input class="inp" type="number" step="0.1" min="0" name="deliveryMarkup"><small>0 = customer pays the Lalamove price</small></label>
+            </div>
+          </div>
+          <div class="card"><h2>Labels (Clabel CT221B)</h2>
+            <div class="grid">
+              <label class="f">Label width (mm)<input class="inp" type="number" min="20" max="80" name="label.widthMm"></label>
+              <label class="f">Label height (mm)<input class="inp" type="number" min="15" max="150" name="label.heightMm"></label>
+              <label class="f"><input type="checkbox" name="label.perItem"> Also print one label per item <small>To stick on each pack</small></label>
+            </div>
+          </div>
+          <div class="card"><h2>Branches</h2>
+            <p class="muted">Orders go to the nearest active branch. To get coordinates: open Google Maps, right-click your shop, click the numbers at the top to copy them, and paste into “Coordinates”.</p>
+            <div id="branches"></div>
+            <div class="row"><button class="btn" type="button" id="addBranch">+ Add branch</button><button class="btn" type="button" id="loadPrinters">Load printers from PrintNode</button></div>
+          </div>
+          <div class="row"><button class="btn pri">Save settings</button><span class="muted" id="settingsOut"></span></div>
+        </form>
+      </section>
+    </main>
+
+    <div class="drawer" id="drawer"><div class="scrim" data-close></div><div class="panel" id="drawerBody"></div></div>
+  </div>
+  <div class="toast" id="toast"></div>
+  <script src="/admin.js"></script>
+</body>
+</html>

@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Your order · Ali's Fresh Meats</title>
+  <meta name="theme-color" content="#1b1917">
+  <meta name="robots" content="noindex">
+  <link rel="icon" href="/logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Oswald:wght@500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="top">
+    <div class="wrap">
+      <a href="/"><img class="logo" src="/logo.png" alt="Ali's" style="width:76px"></a>
+      <div class="brand"><h1>Fresh Meats</h1><p>Since 1975</p></div>
+      <a class="wa" id="wa" href="#" target="_blank" rel="noopener">Need help?</a>
+    </div>
+  </header>
+  <main class="wrap" id="root"><div class="spinner" aria-label="Loading"></div></main>
+  <script>
+  (() => {
+    const $ = (s) => document.querySelector(s);
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const rm = (sen) => 'RM ' + (Number(sen || 0) / 100).toFixed(2);
+    const qtyText = (q, u) => (u === 'kg' ? `${q} kg` : u === 'set' ? `${q} ${q > 1 ? 'sets' : 'set'}` : `${q} ${q > 1 ? 'pcs' : 'pc'}`);
+    const time = (iso) => new Date(iso).toLocaleTimeString('en-MY', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kuala_Lumpur' });
+    const p = new URLSearchParams(location.search);
+    const id = p.get('id'), t = p.get('t'), unpaidReturn = p.get('unpaid') === '1';
+    const ORDER = ['awaiting_payment', 'preparing', 'finding_driver', 'driver_assigned', 'on_the_way', 'delivered'];
+    let timer;
+
+    async function load() {
+      let o;
+      try {
+        const r = await fetch(`/api/order?id=${encodeURIComponent(id)}&t=${encodeURIComponent(t)}`);
+        o = await r.json(); if (!r.ok) throw new Error(o.error);
+      } catch (e) {
+        $('#root').innerHTML = `<div class="status-card"><h2>Order not found</h2><p class="sub">Please check your link, or WhatsApp us for help.</p><a class="bigbtn alt" href="/">Back to shop</a></div>`;
+        return;
+      }
+      $('#wa').href = `https://wa.me/${o.whatsapp}?text=${encodeURIComponent(`Hi, about my order ${o.no}`)}`;
+      try {
+        const last = JSON.parse(localStorage.getItem('afm_last') || 'null');
+        if (last && last.id === id) { localStorage.setItem('afm_last', JSON.stringify({ id, t, no: o.no })); if (o.paid) localStorage.removeItem('afm_cart'); }
+      } catch {}
+
+      const at = ORDER.indexOf(o.stage);
+      const step = (key, label, sub) => {
+        const i = ORDER.indexOf(key);
+        const cls = o.stage === 'delivered' || i < at ? 'done' : i === at ? 'now' : '';
+        return `<li class="${cls}">${label}${sub ? `<small>${sub}</small>` : ''}</li>`;
+      };
+      let head, body = '';
+      if (!o.paid) {
+        head = `<h2>${unpaidReturn ? 'Payment not completed' : 'Waiting for payment'}</h2><p class="sub">Order ${esc(o.no)} is saved. Complete payment to confirm it.</p>`;
+        if (o.payUrl) body = `<a class="bigbtn" href="${esc(o.payUrl)}">Complete payment · ${rm(o.totalSen)}</a>`;
+        body += `<a class="bigbtn alt" href="/#cart">Change my order</a>`;
+      } else {
+        head = `<h2>${o.stage === 'delivered' ? 'Delivered. Enjoy!' : 'Thank you, ' + esc(o.name.split(' ')[0]) + '!'}</h2><p class="sub">Order ${esc(o.no)} · paid ${rm(o.totalSen)}</p>`;
+        body = `<ol class="steps">
+          ${step('preparing', 'Payment received', `We're cutting and packing your order at ${esc(o.branchName)}`)}
+          ${step('finding_driver', 'Finding a Lalamove driver', o.pickupAt ? `Pickup around ${time(o.pickupAt)}` : '')}
+          ${step('driver_assigned', 'Driver on the way to our shop', o.driver ? `${esc(o.driver.name)}${o.driver.plate ? ' · ' + esc(o.driver.plate) : ''}` : '')}
+          ${step('on_the_way', 'Out for delivery', '')}
+          ${step('delivered', 'Delivered', esc(o.address))}
+        </ol>`;
+        if (o.trackUrl) body += `<a class="bigbtn" href="${esc(o.trackUrl)}" target="_blank" rel="noopener">Track driver live</a>`;
+      }
+      const items = `<table class="sum" style="margin-top:18px">
+        ${o.items.map((i) => `<tr><td>${esc(i.name)} <span class="muted">× ${qtyText(i.qty, i.unit)}</span></td><td>${rm(i.lineSen)}</td></tr>`).join('')}
+        ${o.discounts.map((d) => `<tr class="disc"><td>${esc(d.label)}</td><td>− ${rm(d.sen)}</td></tr>`).join('')}
+        <tr><td>Delivery</td><td>${rm(o.deliverySen)}</td></tr>
+        <tr class="tot"><td>Total</td><td>${rm(o.totalSen)}</td></tr></table>`;
+      $('#root').innerHTML = `<div class="status-card">${head}${body}${items}</div>
+        <p class="muted" style="text-align:center;color:#b9ae9c">Keep this page to check your delivery. <a href="/">Order again</a></p>`;
+      clearTimeout(timer);
+      if (o.stage !== 'delivered') timer = setTimeout(load, o.paid ? 15000 : 8000);
+    }
+    load();
+  })();
+  </script>
+</body>
+</html>

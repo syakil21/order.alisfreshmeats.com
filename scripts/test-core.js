@@ -58,4 +58,75 @@ const s = { acceptingOrders: true, hours: { open: '09:00', close: '18:00', close
 assert.ok(shopOpen(s, Date.parse('2026-11-04T02:00:00Z')).open); // 10am MYT
 assert.ok(!shopOpen(s, Date.parse('2026-11-04T12:00:00Z')).open); // 8pm MYT
 console.log('✓ Opening hours');
-console.log('All core tests passed');
+
+// ---- cutting preferences ----
+const { DEFAULT_SETTINGS, branchRadiusKm } = require('../lib/store');
+const S = { ...DEFAULT_SETTINGS };
+const cutItems = (cut) => [{ productId: 'boneless-meat', qty: 1, cut }];
+r = priceCart({ items: cutItems({ by: 'size', size: '2 inch', cooking: 'curry cut', note: '  remove   fat ' }), products: SEED_PRODUCTS, coupons: {}, customers: {}, settings: S });
+assert.deepStrictEqual(r.errors, []);
+assert.strictEqual(r.lines[0].cutText, '2 inch pieces · Curry cut · "remove fat"');
+r = priceCart({ items: cutItems({ by: 'size', size: 'small cubes' }), products: SEED_PRODUCTS, coupons: {}, customers: {}, settings: S });
+assert.strictEqual(r.lines[0].cutText, 'small cubes', 'custom size kept as typed');
+r = priceCart({ items: cutItems({ by: 'size', size: '1.5 inch' }), products: SEED_PRODUCTS, coupons: {}, customers: {}, settings: S });
+assert.strictEqual(r.lines[0].cutText, '1.5 inch pieces');
+r = priceCart({ items: cutItems({ by: 'weight', weight: '75' }), products: SEED_PRODUCTS, coupons: {}, customers: {}, settings: S });
+assert.strictEqual(r.lines[0].cutText, '75 g per piece');
+r = priceCart({ items: cutItems({ by: 'weight', weight: '3' }), products: SEED_PRODUCTS, coupons: {}, customers: {}, settings: S });
+assert.ok(/between 5 g and 2000 g/.test(r.errors[0]));
+r = priceCart({ items: cutItems({ by: 'size', size: '' }), products: SEED_PRODUCTS, coupons: {}, customers: {}, settings: S });
+assert.ok(/piece size/.test(r.errors[0]));
+r = priceCart({ items: cutItems({ cooking: 'Rendang' }), products: SEED_PRODUCTS, coupons: {}, customers: {}, settings: S });
+assert.ok(/cooking style/.test(r.errors[0]), 'cooking must be from the list');
+r = priceCart({ items: [{ productId: 'brain', qty: 1, cut: { by: 'size', size: '2 inch' } }], products: SEED_PRODUCTS, coupons: {}, customers: {}, settings: S });
+assert.ok(!r.lines[0].cut, 'cuts ignored on products without cutting options');
+r = priceCart({ items: cutItems({ by: '', cooking: '', note: '' }), products: SEED_PRODUCTS, coupons: {}, customers: {}, settings: S });
+assert.ok(!r.lines[0].cut, 'empty preference = no cut');
+console.log('✓ Cutting preferences');
+
+// ---- new member offer ----
+const W = { eligible: true, amountSen: 1500, minSpendSen: 0 };
+const two = [{ productId: 'boneless-meat', qty: 1 }]; // RM85
+r = priceCart({ items: two, phone: '+60123456789', products: SEED_PRODUCTS, coupons, customers: {}, settings: S, welcome: W });
+assert.strictEqual(r.discountSen, 1500); assert.ok(r.welcomeApplied);
+r = priceCart({ items: two, phone: '+60123456789', couponCode: 'FIVE', products: SEED_PRODUCTS, coupons, customers: {}, settings: S, welcome: W });
+assert.strictEqual(r.discountSen, 1500); assert.ok(/new member offer is better/.test(r.couponMessage));
+r = priceCart({ items: two, phone: '+60123456789', couponCode: 'FIVE', products: SEED_PRODUCTS, coupons, customers: {}, settings: { ...S, stackDiscounts: true }, welcome: W });
+assert.strictEqual(r.discountSen, 2000, 'stacked offer + coupon');
+r = priceCart({ items: [{ productId: 'spleen', qty: 1 }], products: SEED_PRODUCTS, coupons: {}, customers: {}, settings: S, welcome: W });
+assert.strictEqual(r.discountSen, 800, 'offer never more than the items');
+r = priceCart({ items: two, products: SEED_PRODUCTS, coupons: {}, customers: {}, settings: S, welcome: { ...W, minSpendSen: 10000 } });
+assert.strictEqual(r.discountSen, 0); assert.ok(/Spend at least RM100.00/.test(r.welcomeMessage));
+r = priceCart({ items: two, products: SEED_PRODUCTS, coupons: {}, customers: {}, settings: S, welcome: { eligible: false } });
+assert.strictEqual(r.discountSen, 0); assert.ok(!r.welcomeApplied);
+console.log('✓ New member offer');
+
+// ---- delivery radius ----
+const { pickBranch } = require('../lib/quote');
+const RS = { branches: [
+  { id: 'selayang', name: 'Selayang', address: 'x', lat: '3.2490', lng: '101.6480', active: true, radiusKm: 48 },
+  { id: 'brickfields', name: 'Brickfields', address: 'x', lat: '3.1290', lng: '101.6857', active: true, radiusKm: 55 },
+] };
+const at = (lat, lng) => pickBranch(RS, { lat, lng });
+assert.strictEqual(at(3.5660, 101.6560).branch.id, 'selayang', 'Kuala Kubu Bharu');
+assert.strictEqual(at(3.3417, 101.2500).branch.id, 'selayang', 'Kuala Selangor');
+assert.strictEqual(at(2.7259, 101.9378).branch.id, 'brickfields', 'Seremban');
+assert.ok(!at(3.5660, 101.6560).outside && !at(3.3417, 101.2500).outside && !at(2.7259, 101.9378).outside);
+assert.ok(at(2.5220, 101.7960).outside, 'Port Dickson outside');
+assert.ok(at(3.6850, 101.5180).outside, 'Tanjung Malim outside');
+assert.ok(at(3.6800, 100.9870).outside, 'Sabak Bernam outside');
+assert.strictEqual(branchRadiusKm({ id: 'selayang' }), 48); assert.strictEqual(branchRadiusKm({ id: 'brickfields' }), 55);
+console.log('✓ Delivery radius (KKB, Kuala Selangor, Seremban in; Port Dickson, Tanjung Malim out)');
+
+// ---- landscape label turned for the printer ----
+const { buildLabel } = require('../lib/label');
+const { PDFDocument } = require('pdf-lib');
+(async () => {
+  const order = { no: 'AFM-1', customer: { name: 'A', phone: '+60123456789' }, branchName: 'Selayang', address: {}, delivery: {}, items: [{ name: 'Boneless Meat', qty: 1, unit: 'kg', cutText: '2 inch pieces · Curry cut' }] };
+  const size = async (o) => { const d = await PDFDocument.load(await buildLabel(order, o)); const [w, h] = [d.getPage(0).getWidth(), d.getPage(0).getHeight()]; return [Math.round(w / 2.835), Math.round(h / 2.835)]; };
+  assert.deepStrictEqual(await size({ widthMm: 50, heightMm: 30 }), [50, 30]);
+  assert.deepStrictEqual(await size({ widthMm: 50, heightMm: 30, rotate90: true }), [30, 50], 'rotated page is portrait');
+  assert.deepStrictEqual(await size({ widthMm: 50, heightMm: 30, rotate90: true, preview: true }), [50, 30], 'preview stays landscape');
+  console.log('✓ Label page turned 90° for the printer');
+  console.log('All core tests passed');
+})().catch((e) => { console.error(e); process.exit(1); });

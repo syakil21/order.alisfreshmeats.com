@@ -9,6 +9,7 @@ const { buildLabel } = require('../lib/label');
 const { body, send, ip, siteUrl, rid, safeEqual, handler, httpError } = require('../lib/http');
 const { fulfil, printLabel, bookDelivery, refreshDelivery, labelOptions } = require('../lib/fulfil');
 const { stage } = require('../lib/stage');
+const members = require('../lib/members');
 const { normalizePhone } = require('../lib/util');
 
 const num = (v, d = 0) => (isFinite(parseFloat(v)) ? parseFloat(v) : d);
@@ -34,8 +35,14 @@ const detail = (o) => { const { token, ...rest } = o; return { ...rest, ...{ sum
 const SAMPLE_ORDER = {
   id: 'test', no: 'AFM-TEST', customer: { name: 'Test Customer', phone: '+60123456789' }, branchName: 'Test',
   address: { text: 'Test address', notes: 'Test print from dashboard' }, delivery: { scheduleAt: new Date().toISOString() },
-  items: [{ name: 'Boneless Meat', qty: 1.5, unit: 'kg' }, { name: 'Lamb Shank', qty: 2, unit: 'kg' }, { name: 'Head', qty: 1, unit: 'set' }],
+  items: [
+    { name: 'Boneless Meat', qty: 1.5, unit: 'kg', cutText: '2 inch pieces · Curry cut' },
+    { name: 'Mutton Chops', qty: 1, unit: 'kg', cutText: '50 g per piece · Chukka · "Remove fat please"' },
+    { name: 'Head', qty: 1, unit: 'set' },
+  ],
 };
+const MAX_IMAGE_BYTES = 700 * 1024;
+const list = (v, n = 12) => String(Array.isArray(v) ? v.join(',') : v || '').split(',').map((x) => x.trim()).filter(Boolean).slice(0, n);
 
 const actions = {
   async login(b, req) {
@@ -107,6 +114,7 @@ const actions = {
   async 'products.get'() { return { products: await store.getProducts() }; },
   async 'products.save'(b) {
     if (!Array.isArray(b.products)) throw httpError(400, 'products must be a list');
+    const current = Object.fromEntries((await store.getProducts()).map((p) => [p.id, p]));
     const seen = new Set();
     const list = b.products.map((p, i) => {
       const unit = ['kg', 'set', 'pc'].includes(p.unit) ? p.unit : 'kg';
@@ -116,10 +124,43 @@ const actions = {
       return {
         id, category: str(p.category, 60) || 'Other', name: str(p.name, 80), note: str(p.note, 120),
         price: Math.max(0, Math.round(num(p.price) * 100) / 100), unit, step, min: Math.max(step, num(p.min, step)),
-        available: p.available !== false, sort: i,
+        cuts: !!p.cuts, image: current[id]?.image || '', available: p.available !== false, sort: i,
       };
     });
+    // delete photos of removed products
+    for (const old of Object.values(current)) if (old.image && !list.some((p) => p.image === old.image)) await db.del(`img:${old.image}`);
     return { products: await store.saveProducts(list) };
+  },
+  async 'products.image'(b) {
+    const m = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/.exec(String(b.dataUrl || ''));
+    if (!m) throw httpError(400, 'Please upload a JPG, PNG or WebP photo.');
+    if (Buffer.byteLength(m[2], 'base64') > MAX_IMAGE_BYTES) throw httpError(400, 'Photo is too large. Please use a smaller photo.');
+    const products = await store.getProducts();
+    const p = products.find((x) => x.id === b.id); if (!p) throw httpError(404, 'Save the new product first, then add its photo.');
+    const imgId = rid(9);
+    await db.set(`img:${imgId}`, { type: m[1], b64: m[2] });
+    if (p.image) await db.del(`img:${p.image}`);
+    p.image = imgId;
+    return { products: await store.saveProducts(products) };
+  },
+  async 'products.imageRemove'(b) {
+    const products = await store.getProducts();
+    const p = products.find((x) => x.id === b.id); if (!p) throw httpError(404, 'Product not found');
+    if (p.image) await db.del(`img:${p.image}`);
+    p.image = '';
+    return { products: await store.saveProducts(products) };
+  },
+
+  // ---- registered members ----
+  async 'members.list'() {
+    const [list2, customers, used] = await Promise.all([members.list(), store.getCustomers(), members.welcomeUsedCount()]);
+    return { members: list2.map((m) => ({ id: m.id, name: m.name, phone: m.phone, email: m.email, createdAt: m.createdAt, orderCount: m.orderCount || 0, welcomeUsed: !!m.welcomeUsed, addresses: (m.addresses || []).length, discountPct: Number(customers[m.phone]?.discountPct) || 0 })), welcomeUsed: used };
+  },
+  async 'members.resetPassword'(b) {
+    const m = await members.get(b.id); if (!m) throw httpError(404, 'Member not found');
+    const temp = Array.from({ length: 8 }, () => 'abcdefghjkmnpqrstuvwxyz23456789'[crypto.randomInt(31)]).join('');
+    await members.setPassword(m, temp);
+    return { password: temp, phone: m.phone, name: m.name };
   },
 
   // ---- coupons ----
@@ -167,7 +208,7 @@ const actions = {
   },
 
   // ---- settings ----
-  async 'settings.get'(b, req) { return { settings: await store.getSettings(), status: integrationStatus(req) }; },
+  async 'settings.get'(b, req) { return { settings: await store.getSettings(), status: integrationStatus(req), welcomeUsed: await members.welcomeUsedCount() }; },
   async 'settings.save'(b, req) {
     const s = b.settings || {}; const cur = await store.getSettings();
     const hhmm = (v, d) => (/^\d{2}:\d{2}$/.test(String(v || '')) ? v : d);
@@ -186,16 +227,24 @@ const actions = {
       minOrder: Math.max(0, num(s.minOrder)),
       stackDiscounts: !!s.stackDiscounts,
       checkoutNote: str(s.checkoutNote, 300),
-      label: { widthMm: Math.min(80, Math.max(20, num(s.label?.widthMm, 50))), heightMm: Math.min(150, Math.max(15, num(s.label?.heightMm, 30))), perItem: !!s.label?.perItem },
+      deliveryAreaNote: str(s.deliveryAreaNote, 200),
+      welcome: { enabled: !!s.welcome?.enabled, amount: Math.max(0, num(s.welcome?.amount, cur.welcome.amount)), limit: Math.max(0, Math.round(num(s.welcome?.limit, cur.welcome.limit))), minSpend: Math.max(0, num(s.welcome?.minSpend)) },
+      cutting: {
+        sizes: list(s.cutting?.sizes).map((x) => x.slice(0, 20)),
+        weights: list(s.cutting?.weights, 20).map((x) => Math.round(parseFloat(x))).filter((g) => g >= 5 && g <= 2000),
+        cooking: list(s.cutting?.cooking).map((x) => x.slice(0, 30)),
+      },
+      label: { widthMm: Math.min(150, Math.max(15, num(s.label?.widthMm, 50))), heightMm: Math.min(150, Math.max(15, num(s.label?.heightMm, 30))), perItem: !!s.label?.perItem, rotate90: !!s.label?.rotate90, flip: !!s.label?.flip },
       branches: (Array.isArray(s.branches) ? s.branches : cur.branches).map((br) => ({
         id: br.id ? slug(br.id) : slug(br.name), name: str(br.name, 60), address: str(br.address, 300),
         lat: isFinite(parseFloat(br.lat)) ? String(parseFloat(br.lat)) : '', lng: isFinite(parseFloat(br.lng)) ? String(parseFloat(br.lng)) : '',
         phone: normalizePhone(br.phone) || '', printerId: str(br.printerId, 20).replace(/\D/g, ''), active: br.active !== false,
+        radiusKm: Math.min(300, Math.max(1, num(br.radiusKm, 50))),
       })).filter((br) => br.name),
     };
     for (const br of next.branches) if (br.active && br.address && (!br.lat || !br.lng)) throw httpError(400, `${br.name}: add the map coordinates (lat, lng).`);
     for (const br of next.branches) if (br.active && br.address && !br.phone) throw httpError(400, `${br.name}: add a contact phone for the Lalamove driver.`);
-    return { settings: await store.saveSettings(next), status: integrationStatus(req) };
+    return { settings: await store.saveSettings(next), status: integrationStatus(req), welcomeUsed: await members.welcomeUsedCount() };
   },
 
   // ---- integrations ----
@@ -245,3 +294,4 @@ module.exports = handler(async (req, res) => {
   try { send(res, 200, await fn(b, req)); }
   catch (e) { if (e.status) throw e; console.error(e); throw httpError(400, e.message); }
 });
+module.exports.SAMPLE_ORDER = SAMPLE_ORDER;

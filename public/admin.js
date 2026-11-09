@@ -129,7 +129,7 @@
         <dt>Placed</dt><dd>${fmtDT(o.createdAt)}</dd>
       </dl></div>
       <div class="card"><table class="list">
-        ${o.items.map((i) => `<tr><td>${esc(i.name)}</td><td><b>${qtyText(i.qty, i.unit)}</b></td><td class="num">${rm(i.lineSen)}</td></tr>`).join('')}
+        ${o.items.map((i) => `<tr><td>${esc(i.name)}${i.cutText ? `<div class="cutline">✂ ${esc(i.cutText)}</div>` : ''}</td><td><b>${qtyText(i.qty, i.unit)}</b></td><td class="num">${rm(i.lineSen)}</td></tr>`).join('')}
         <tr><td colspan="2">Subtotal</td><td class="num">${rm(o.subtotalSen)}</td></tr>
         ${(o.discounts || []).map((x) => `<tr><td colspan="2">${esc(x.label)}</td><td class="num">− ${rm(x.sen)}</td></tr>`).join('')}
         <tr><td colspan="2">Delivery charged</td><td class="num">${rm(o.deliverySen)}</td></tr>
@@ -166,11 +166,13 @@
   function renderProducts() {
     $('#productRows').innerHTML = products.map((p, i) => `
       <tr data-i="${i}">
+        <td><button type="button" class="photo ${p.image ? '' : 'none'}" data-photo title="${p.image ? 'Change photo' : 'Upload photo'}">${p.image ? `<img src="/api/image?id=${esc(p.image)}" alt="">` : '+ Photo'}</button>${p.image ? '<button type="button" class="linkx" data-nophoto title="Remove photo">remove</button>' : ''}</td>
         <td><input class="inp" data-k="category" value="${esc(p.category)}" list="cats"></td>
         <td><input class="inp" data-k="name" value="${esc(p.name)}"></td>
         <td class="hide-sm"><input class="inp" data-k="note" value="${esc(p.note)}"></td>
         <td style="width:100px"><input class="inp" data-k="price" type="number" step="0.01" min="0" value="${esc(p.price)}"></td>
         <td style="width:84px"><select class="inp" data-k="unit">${['kg', 'set', 'pc'].map((u) => `<option ${p.unit === u ? 'selected' : ''}>${u}</option>`).join('')}</select></td>
+        <td style="text-align:center"><input type="checkbox" data-k="cuts" ${p.cuts ? 'checked' : ''}></td>
         <td style="text-align:center"><input type="checkbox" data-k="available" ${p.available ? 'checked' : ''}></td>
         <td style="white-space:nowrap"><button class="btn sm" data-mv="-1" title="Move up">↑</button> <button class="btn sm" data-mv="1" title="Move down">↓</button> <button class="btn red sm" data-del title="Delete">✕</button></td>
       </tr>`).join('') + `<datalist id="cats">${[...new Set(products.map((p) => p.category))].map((c) => `<option value="${esc(c)}">`).join('')}</datalist>`;
@@ -186,8 +188,38 @@
     const tr = e.target.closest('tr[data-i]'); if (!tr) return; const i = Number(tr.dataset.i);
     if (e.target.dataset.mv) { const j = i + Number(e.target.dataset.mv); if (j < 0 || j >= products.length) return; [products[i], products[j]] = [products[j], products[i]]; renderProducts(); }
     if (e.target.hasAttribute('data-del') && confirm(`Delete ${products[i].name}?`)) { products.splice(i, 1); renderProducts(); }
+    if (e.target.closest('[data-photo]')) {
+      if (!products[i].id) return toast('Click “Save prices” first, then add the photo.');
+      photoFor = products[i].id; $('#photoFile').value = ''; $('#photoFile').click();
+    }
+    if (e.target.hasAttribute('data-nophoto') && confirm(`Remove the photo of ${products[i].name}?`)) busy(e.target, async () => mergeImages((await api('products.imageRemove', { id: products[i].id })).products));
   });
-  $('#addProduct').addEventListener('click', () => { products.push({ category: products.at(-1)?.category || 'Other', name: '', note: '', price: 0, unit: 'kg', step: 0.5, min: 0.5, available: true }); renderProducts(); $$('#productRows tr').at(-1).querySelector('[data-k="name"]').focus(); });
+  // photos: resized in the browser (max 900 px) before upload, saved immediately
+  let photoFor = null;
+  function mergeImages(fresh) {
+    const byId = Object.fromEntries(fresh.map((p) => [p.id, p.image]));
+    for (const p of products) if (p.id in byId) p.image = byId[p.id];
+    renderProducts();
+  }
+  async function resizePhoto(file) {
+    const url = URL.createObjectURL(file);
+    try {
+      const img = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => rej(new Error('Could not read that photo. Please use a JPG or PNG.')); im.src = url; });
+      const scale = Math.min(1, 900 / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement('canvas'); c.width = Math.round(img.naturalWidth * scale); c.height = Math.round(img.naturalHeight * scale);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      for (const q of [0.82, 0.7, 0.55]) { const d = c.toDataURL('image/jpeg', q); if (d.length < 900000) return d; }
+      throw new Error('Photo is too large.');
+    } finally { URL.revokeObjectURL(url); }
+  }
+  $('#photoFile').addEventListener('change', async () => {
+    const f = $('#photoFile').files[0]; if (!f || !photoFor) return;
+    toast('Uploading photo…');
+    try { const dataUrl = await resizePhoto(f); mergeImages((await api('products.image', { id: photoFor, dataUrl })).products); toast('Photo saved. It shows on the shop now.'); }
+    catch (err) { toast(err.message); }
+    photoFor = null;
+  });
+  $('#addProduct').addEventListener('click', () => { products.push({ category: products.at(-1)?.category || 'Other', name: '', note: '', price: 0, unit: 'kg', step: 0.5, min: 0.5, cuts: false, image: '', available: true }); renderProducts(); $$('#productRows tr').at(-1).querySelector('[data-k="name"]').focus(); });
   $('#saveProducts').addEventListener('click', (e) => busy(e.target, async () => { products = (await api('products.save', { products })).products; renderProducts(); toast('Prices saved. The shop is updated.'); }));
 
   // ---------- coupons ----------
@@ -223,8 +255,31 @@
   }));
 
   // ---------- members ----------
-  let members = []; let editingPhone = '';
-  async function loadMembers() { members = (await api('customers.get')).customers; renderMembers(); }
+  let members = []; let editingPhone = ''; let registered = [];
+  async function loadMembers() {
+    const [c, r] = await Promise.all([api('customers.get'), api('members.list')]);
+    members = c.customers; registered = r.members; renderMembers(); renderRegistered();
+  }
+  function renderRegistered() {
+    const q = $('#memberSearch').value.trim().toLowerCase();
+    const list = registered.filter((m) => !q || [m.name, m.phone, prettyPhone(m.phone), m.email].join(' ').toLowerCase().includes(q));
+    $('#memberCount').textContent = `(${registered.length})`;
+    $('#regRows').innerHTML = list.map((m) => `<tr><td><b>${esc(m.name)}</b></td><td><a href="https://wa.me/${esc(m.phone.replace('+', ''))}" target="_blank" rel="noopener">${esc(prettyPhone(m.phone))}</a></td><td class="hide-sm">${esc(m.email || '')}</td>
+      <td class="hide-sm">${new Date(m.createdAt).toLocaleDateString('en-MY', tz)}</td><td>${m.orderCount}</td><td>${m.welcomeUsed ? '<span class="tag t-done">Used</span>' : '<span class="tag t-pay">Not yet</span>'}</td>
+      <td>${m.discountPct ? `<b>${m.discountPct}%</b>` : '—'}</td>
+      <td style="white-space:nowrap"><button class="btn sm" data-disc="${esc(m.phone)}" data-name="${esc(m.name)}">Set discount</button> <button class="btn sm" data-reset="${esc(m.id)}">Reset password</button></td></tr>`).join('')
+      || `<tr><td colspan="8" class="muted">${registered.length ? 'No members match.' : 'No members yet. Customers sign up from the shop.'}</td></tr>`;
+  }
+  $('#memberSearch').addEventListener('input', renderRegistered);
+  $('#regRows').addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.disc) { const ex = members.find((x) => x.phone === b.dataset.disc); fillMember(ex || { phone: b.dataset.disc, name: b.dataset.name }); $('#memberForm').scrollIntoView({ behavior: 'smooth', block: 'center' }); $('#memberForm [name="discountPct"]').focus(); }
+    if (b.dataset.reset && confirm('Give this member a new password? Their old password will stop working.')) busy(b, async () => {
+      const r = await api('members.resetPassword', { id: b.dataset.reset });
+      const msg = `Hi ${r.name}, your new password for Ali's Fresh Meats online ordering is: ${r.password}  You can log in at order.alisfreshmeats.com/account.html and change it under "Change password".`;
+      if (confirm(`New password for ${r.name}: ${r.password}\n\nClick OK to send it to them on WhatsApp.`)) window.open(`https://wa.me/${r.phone.replace('+', '')}?text=${encodeURIComponent(msg)}`, '_blank');
+    });
+  });
   function renderMembers() {
     $('#memberRows').innerHTML = members.map((m) => `<tr><td>${esc(prettyPhone(m.phone))}</td><td>${esc(m.name)}</td><td><b>${m.discountPct}%</b></td><td class="hide-sm muted">${esc(m.note)}</td>
       <td style="white-space:nowrap"><button class="btn sm" data-edit="${esc(m.phone)}">Edit</button> <button class="btn red sm" data-delm="${esc(m.phone)}">✕</button></td></tr>`).join('') || '<tr><td colspan="5" class="muted">No member discounts yet.</td></tr>';
@@ -236,7 +291,8 @@
   });
   $('#resetMember').addEventListener('click', () => fillMember());
   $('#saveMember').addEventListener('click', (e) => busy(e.target, async () => {
-    members = (await api('customers.save', { customer: Object.fromEntries(new FormData($('#memberForm')).entries()), originalPhone: editingPhone })).customers; renderMembers(); fillMember(); toast('Member saved');
+    members = (await api('customers.save', { customer: Object.fromEntries(new FormData($('#memberForm')).entries()), originalPhone: editingPhone })).customers; renderMembers(); fillMember(); toast('Discount saved');
+    registered = (await api('members.list')).members; renderRegistered();
   }));
 
   // ---------- settings ----------
@@ -244,7 +300,8 @@
   const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const getPath = (o, p) => p.split('.').reduce((a, k) => a?.[k], o);
   const setPath = (o, p, v) => { const ks = p.split('.'); const last = ks.pop(); ks.reduce((a, k) => (a[k] ||= {}), o)[last] = v; };
-  async function loadSettings() { const d = await api('settings.get'); settings = d.settings; renderStatus(d.status); renderSettings(); }
+  async function loadSettings() { const d = await api('settings.get'); settings = d.settings; renderStatus(d.status); renderSettings(); $('#welcomeUsed').textContent = d.welcomeUsed; }
+  $('#previewLabel').addEventListener('click', () => window.open(`/api/label?sample=1&preview=1&auth=${encodeURIComponent(token)}`, '_blank'));
   function renderStatus(st) {
     const item = (label, v, hint) => `<div><b>${label}</b><br>${v ? `<span class="ok">✓ ${v === true ? 'Connected' : esc(v)}</span>` : `<span class="bad">Not set</span> <span class="muted">${hint}</span>`}</div>`;
     $('#status').innerHTML = item('Database', st.database, 'Add the Upstash Redis keys') + item('Billplz', st.billplz, 'BILLPLZ_* keys') + item('Lalamove', st.lalamove, 'LALAMOVE_* keys') +
@@ -252,7 +309,7 @@
   }
   function renderSettings() {
     const f = $('#settingsForm');
-    for (const el of f.querySelectorAll('[name]')) { const v = getPath(settings, el.name); if (el.type === 'checkbox') el.checked = !!v; else el.value = v ?? ''; }
+    for (const el of f.querySelectorAll('[name]')) { const v = getPath(settings, el.name); if (el.type === 'checkbox') el.checked = !!v; else el.value = Array.isArray(v) ? v.join(', ') : v ?? ''; }
     $('#closedDays').innerHTML = DAYS.map((d, i) => `<button type="button" class="chip ${settings.hours.closedDays.includes(i) ? 'on' : ''}" data-day="${i}">${d}</button>`).join('');
     renderBranches();
   }
@@ -268,6 +325,7 @@
         <label class="f">Contact phone for driver<input class="inp" data-k="phone" value="${esc(prettyPhone(b.phone))}"></label>
         <label class="f" style="grid-column:1/-1">Pickup address<input class="inp" data-k="address" value="${esc(b.address)}" placeholder="Full shop address"></label>
         <label class="f">Coordinates (lat, lng)<input class="inp" data-k="coords" value="${b.lat && b.lng ? esc(`${b.lat}, ${b.lng}`) : ''}" placeholder="3.2389, 101.6500"></label>
+        <label class="f">Delivery radius (km)<input class="inp" type="number" min="1" max="300" data-k="radiusKm" value="${esc(b.radiusKm ?? '')}"><small>Straight-line distance from this shop</small></label>
         <label class="f">Label printer<select class="inp" data-k="printerId"><option value="">— none —</option>${opts.map((p) => `<option value="${esc(p.id)}" ${String(p.id) === String(b.printerId) ? 'selected' : ''}>${esc(p.name)}${p.computer ? ` (${esc(p.computer)})` : ''}</option>`).join('')}</select><small>${printers.length ? '' : 'Click “Load printers from PrintNode”'}</small></label>
       </div><div class="row" style="margin-top:10px"><label class="f grow"><input type="checkbox" data-k="active" ${b.active ? 'checked' : ''}> Takes online orders</label>
         <button class="btn sm" type="button" data-test="${esc(b.id)}">Print test label</button><button class="btn red sm" type="button" data-delb>Remove</button></div></div>`;
@@ -284,7 +342,7 @@
     if (e.target.hasAttribute('data-delb') && confirm('Remove this branch?')) { settings.branches.splice(box.dataset.b, 1); renderBranches(); }
     if (e.target.dataset.test) busy(e.target, async () => { const r = await api('print.test', { branchId: e.target.dataset.test }); toast(`Test label sent (job ${r.jobId})`); });
   });
-  $('#addBranch').addEventListener('click', () => { settings.branches.push({ name: '', address: '', lat: '', lng: '', phone: '', printerId: '', active: true }); renderBranches(); });
+  $('#addBranch').addEventListener('click', () => { settings.branches.push({ name: '', address: '', lat: '', lng: '', phone: '', printerId: '', radiusKm: 30, active: true }); renderBranches(); });
   $('#loadPrinters').addEventListener('click', (e) => busy(e.target, async () => { printers = (await api('printers.list')).printers; renderBranches(); toast(`${printers.length} printer(s) found`); }));
   $('#settingsForm').addEventListener('submit', (e) => {
     e.preventDefault();
@@ -292,7 +350,7 @@
     busy(btn, async () => {
       const f = $('#settingsForm');
       for (const el of f.querySelectorAll('[name]')) setPath(settings, el.name, el.type === 'checkbox' ? el.checked : el.value);
-      const d = await api('settings.save', { settings }); settings = d.settings; renderStatus(d.status); renderSettings();
+      const d = await api('settings.save', { settings }); settings = d.settings; renderStatus(d.status); renderSettings(); $('#welcomeUsed').textContent = d.welcomeUsed;
       $('#settingsOut').textContent = 'Saved ' + fmtTime(Date.now()); toast('Settings saved');
     });
   });

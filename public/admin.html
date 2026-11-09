@@ -69,6 +69,11 @@
     .ptable td { padding:6px 4px; } .ptable .inp { width:100%; padding:7px 8px; }
     .branch { border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:10px; background:#fcfaf5; }
     .hidden { display:none !important; }
+    .photo { width:56px; height:56px; border-radius:10px; border:1.5px dashed var(--line); background:#fbf7ef; padding:0; overflow:hidden; font-size:11px; font-weight:700; color:var(--muted); display:grid; place-items:center; }
+    .photo img { width:100%; height:100%; object-fit:cover; display:block; }
+    .photo:not(.none) { border-style:solid; }
+    .linkx { display:block; border:0; background:none; color:var(--red); font-size:11px; padding:2px 0 0; }
+    .cutline { font-size:12.5px; color:#8a5a2e; font-weight:600; }
     @media (max-width:700px) { .hide-sm { display:none; } .kv { grid-template-columns:96px 1fr; } }
   </style>
 </head>
@@ -88,7 +93,7 @@
       <img src="/logo.png" alt="Ali's"><h1 class="hide-sm">Orders</h1>
       <nav class="nav" id="nav">
         <button data-tab="orders" class="on">Orders</button><button data-tab="products">Prices</button>
-        <button data-tab="coupons">Coupons</button><button data-tab="members">Members</button><button data-tab="settings">Settings</button>
+        <button data-tab="coupons">Coupons</button><button data-tab="members">Customers</button><button data-tab="settings">Settings</button>
       </nav>
     </div></div>
     <main>
@@ -108,8 +113,9 @@
       <section data-view="products" class="hidden">
         <div class="card">
           <div class="row"><h2 class="grow" style="margin:0">Prices &amp; menu</h2><button class="btn" id="addProduct">+ Add product</button><button class="btn pri" id="saveProducts">Save prices</button></div>
-          <p class="muted">Change prices any time (seasonal prices). Untick “On sale” to hide sold-out items. Changes show on the shop as soon as you save.</p>
-          <div style="overflow-x:auto"><table class="list ptable"><thead><tr><th>Category</th><th>Name</th><th class="hide-sm">Note</th><th>Price (RM)</th><th>Per</th><th>On sale</th><th></th></tr></thead><tbody id="productRows"></tbody></table></div>
+          <p class="muted">Change prices any time (seasonal prices). Untick “On sale” to hide sold-out items. Tick “Cutting” to let customers choose piece size, piece weight and cooking style. Click a photo box to upload a picture (it saves straight away). Price changes show on the shop when you click Save prices.</p>
+          <div style="overflow-x:auto"><table class="list ptable"><thead><tr><th>Photo</th><th>Category</th><th>Name</th><th class="hide-sm">Note</th><th>Price (RM)</th><th>Per</th><th title="Customers can choose how it's cut">Cutting</th><th>On sale</th><th></th></tr></thead><tbody id="productRows"></tbody></table></div>
+          <input type="file" id="photoFile" accept="image/*" hidden>
         </div>
       </section>
 
@@ -137,8 +143,13 @@
 
       <section data-view="members" class="hidden">
         <div class="card">
-          <h2>Member discounts</h2>
-          <p class="muted">Regular customers get their discount automatically when they check out with this phone number.</p>
+          <div class="row"><h2 class="grow" style="margin:0">Registered members <span class="muted" id="memberCount"></span></h2><input class="inp" id="memberSearch" placeholder="Search name, phone or email" style="min-width:200px"></div>
+          <p class="muted">Customers who signed up at <b>order.alisfreshmeats.com/account.html</b>. If someone forgets their password, click “Reset password” and send them the new one on WhatsApp.</p>
+          <div style="overflow-x:auto"><table class="list"><thead><tr><th>Name</th><th>Phone</th><th class="hide-sm">Email</th><th class="hide-sm">Joined</th><th>Orders</th><th>Offer</th><th>Discount</th><th></th></tr></thead><tbody id="regRows"></tbody></table></div>
+        </div>
+        <div class="card">
+          <h2>Special discounts by phone</h2>
+          <p class="muted">Regular customers get this discount automatically when they check out with this phone number (with or without an account).</p>
           <form id="memberForm" class="grid">
             <label class="f">Phone<input class="inp" name="phone" required placeholder="012-345 6789"></label>
             <label class="f">Name<input class="inp" name="name" placeholder="Customer name"></label>
@@ -165,7 +176,24 @@
             </div>
             <h3>Closed on</h3><div class="chips" id="closedDays"></div>
             <h3>Message on checkout</h3><input class="inp" name="checkoutNote" style="width:100%">
-            <h3>Discounts</h3><label class="f"><input type="checkbox" name="stackDiscounts"> Members can use a coupon on top of their member discount <small>Off: they get whichever discount is bigger</small></label>
+            <h3>Discounts</h3><label class="f"><input type="checkbox" name="stackDiscounts"> Discounts can be combined (special discount, new member offer and coupon) <small>Off: the customer gets whichever single discount is biggest</small></label>
+          </div>
+          <div class="card"><h2>New member offer</h2>
+            <p class="muted">RM off the first paid order of a newly registered member. Used so far: <b id="welcomeUsed">0</b></p>
+            <div class="grid">
+              <label class="f"><input type="checkbox" name="welcome.enabled"> Offer is on</label>
+              <label class="f">Amount off (RM)<input class="inp" type="number" step="0.5" min="0" name="welcome.amount"></label>
+              <label class="f">For the first … members<input class="inp" type="number" min="0" name="welcome.limit"><small>Raise this to extend the offer</small></label>
+              <label class="f">Minimum spend (RM)<input class="inp" type="number" step="0.01" min="0" name="welcome.minSpend"><small>0 = no minimum</small></label>
+            </div>
+          </div>
+          <div class="card"><h2>Cutting options</h2>
+            <p class="muted">Shown on products with “Cutting” ticked. Separate choices with commas. Customers can also type a custom size, a custom weight and a comment.</p>
+            <div class="grid">
+              <label class="f">Piece sizes<input class="inp" name="cutting.sizes" placeholder="1 inch, 2 inch, 3 inch, 4 inch"></label>
+              <label class="f">Piece weights (grams)<input class="inp" name="cutting.weights" placeholder="10, 20, 30, 40, 50"></label>
+              <label class="f">Cooking styles<input class="inp" name="cutting.cooking" placeholder="Curry cut, Kurma, Chukka, Briyani"></label>
+            </div>
           </div>
           <div class="card"><h2>Delivery (Lalamove)</h2>
             <div class="grid">
@@ -175,17 +203,21 @@
               <label class="f">Bigger vehicle<input class="inp" name="heavyServiceType" placeholder="CAR"></label>
               <label class="f">Special requests<input class="inp" name="specialRequests" placeholder="optional, e.g. insulated bag key"><small>Keys from “Connect Lalamove updates” list</small></label>
               <label class="f">Add to delivery fee (RM)<input class="inp" type="number" step="0.1" min="0" name="deliveryMarkup"><small>0 = customer pays the Lalamove price</small></label>
+              <label class="f" style="grid-column:1/-1">Delivery area message<input class="inp" name="deliveryAreaNote"><small>Shown on the shop and when an address is too far. The distance limit for each shop is set under Branches.</small></label>
             </div>
           </div>
           <div class="card"><h2>Labels (Clabel CT221B)</h2>
             <div class="grid">
-              <label class="f">Label width (mm)<input class="inp" type="number" min="20" max="80" name="label.widthMm"></label>
-              <label class="f">Label height (mm)<input class="inp" type="number" min="15" max="150" name="label.heightMm"></label>
+              <label class="f">Sticker width (mm)<input class="inp" type="number" min="15" max="150" name="label.widthMm"><small>The long side, as you read the sticker</small></label>
+              <label class="f">Sticker height (mm)<input class="inp" type="number" min="15" max="150" name="label.heightMm"></label>
+              <label class="f"><input type="checkbox" name="label.rotate90"> Turn print 90° <small>Keep on if labels come out sideways (portrait). Untick if they come out sideways after this change.</small></label>
+              <label class="f"><input type="checkbox" name="label.flip"> Turn print 180° <small>If labels come out upside down</small></label>
               <label class="f"><input type="checkbox" name="label.perItem"> Also print one label per item <small>To stick on each pack</small></label>
             </div>
+            <div class="row" style="margin-top:10px"><button class="btn sm" type="button" id="previewLabel">Preview label</button><span class="muted">Save settings first, then use “Print test label” under Branches to check on the printer.</span></div>
           </div>
           <div class="card"><h2>Branches</h2>
-            <p class="muted">Orders go to the nearest active branch. To get coordinates: open Google Maps, right-click your shop, click the numbers at the top to copy them, and paste into “Coordinates”.</p>
+            <p class="muted">Orders go to the nearest active branch whose delivery radius covers the address (straight-line distance). To get coordinates: open Google Maps, right-click your shop, click the numbers at the top to copy them, and paste into “Coordinates”.</p>
             <div id="branches"></div>
             <div class="row"><button class="btn" type="button" id="addBranch">+ Add branch</button><button class="btn" type="button" id="loadPrinters">Load printers from PrintNode</button></div>
           </div>

@@ -1,23 +1,65 @@
 (() => {
   const $ = (s) => document.querySelector(s);
+  const $$ = (s) => [...document.querySelectorAll(s)];
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const saved = {
     get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
-    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+    set(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch {} },
   };
   const rm = (sen) => 'RM ' + (Number(sen || 0) / 100).toFixed(2);
   const qtyText = (q, u) => (u === 'kg' ? `${q} kg` : u === 'set' ? `${q} ${q > 1 ? 'sets' : 'set'}` : `${q} ${q > 1 ? 'pcs' : 'pc'}`);
   const unitText = (u) => (u === 'kg' ? '/kg' : u === 'set' ? '/set' : '/pc');
+  const PLACEHOLDER = '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" aria-hidden="true"><path d="M9 27c-2-8 4-17 14-18 9-1 16 5 16 13 0 7-6 11-13 13-7 2-15 0-17-8Z"/><path d="M16 26c1-5 5-8 10-8" opacity=".6"/><circle cx="31" cy="25" r="3.4"/></svg>';
 
   let catalog = null;
   const products = {};
-  let cart = saved.get('afm_cart') || {};
+  let cart = loadCart();
   const details = saved.get('afm_details') || {};
-  let address = details.address && isFinite(details.address.lat) ? details.address : null;
+  let token = saved.get('afm_member');
+  let me = null; // { member, welcome, discountPct }
+  let picker = null; let selectedSaved = null;
   let couponCode = '';
   let quote = null; let quoteSeq = 0; let quoteTimer = null; let paying = false; let quoting = false;
 
   function toast(msg) { const t = $('#toast'); t.textContent = msg; t.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(() => (t.style.display = 'none'), 3500); }
+  const auth = () => (token ? { Authorization: 'Bearer ' + token } : {});
+
+  // ---------- cart: lines of { key, productId, qty, cut } ----------
+  function loadCart() {
+    const c = saved.get('afm_cart2');
+    if (Array.isArray(c)) return c;
+    const old = saved.get('afm_cart'); // older format { productId: qty }
+    if (old && typeof old === 'object') { saved.set('afm_cart', null); return Object.entries(old).map(([productId, qty]) => ({ key: productId + '|null', productId, qty, cut: null })); }
+    return [];
+  }
+  const saveCart = () => saved.set('afm_cart2', cart);
+  const lineKey = (productId, cut) => productId + '|' + JSON.stringify(cut || null);
+  function cutText(cut) {
+    if (!cut) return '';
+    const size = /\d\s*(inch|inches|in|cm|mm|")$/i.test(cut.size) ? `${cut.size} pieces` : cut.size;
+    return [cut.by === 'size' ? size : cut.by === 'weight' ? `${cut.weight} g per piece` : '', cut.cooking, cut.note ? `“${cut.note}”` : ''].filter(Boolean).join(' · ');
+  }
+  function addToCart(productId, qty, cut) {
+    const key = lineKey(productId, cut);
+    const l = cart.find((x) => x.key === key);
+    if (l) l.qty = Math.min(50, Math.round((l.qty + qty) * 100) / 100); else cart.push({ key, productId, qty, cut: cut || null });
+    saveCart(); refreshCartViews();
+  }
+  function changeLine(key, dir) {
+    const l = cart.find((x) => x.key === key); const p = l && products[l.productId]; if (!p) return;
+    const step = Number(p.step) || 1; const min = Number(p.min) || step;
+    let q = Math.round((l.qty + dir * step) * 100) / 100;
+    if (dir > 0 && !l.qty) q = min;
+    if (q < min) cart = cart.filter((x) => x !== l); else l.qty = Math.min(50, q);
+    saveCart(); refreshCartViews();
+  }
+  const productQty = (id) => cart.filter((l) => l.productId === id).reduce((s, l) => s + l.qty, 0);
+  const estimate = () => cart.reduce((s, l) => s + Math.round(Number(products[l.productId]?.price || 0) * 100 * l.qty), 0);
+  function refreshCartViews() {
+    for (const el of $$('.item')) renderCtl(el.dataset.id);
+    renderBar();
+    if ($('#sheet').classList.contains('show')) { renderLines(); scheduleQuote(); }
+  }
 
   // ---------- menu ----------
   async function load() {
@@ -32,6 +74,7 @@
     const chip = $('#openChip');
     chip.textContent = catalog.open ? catalog.openMessage : 'Closed now';
     chip.className = 'chip ' + (catalog.open ? 'open' : 'closed');
+    $('#areaNote').textContent = catalog.shop.deliveryAreaNote || '';
     const notes = [];
     if (!catalog.open) notes.push(catalog.openMessage + ' You can still browse the menu.');
     if (!catalog.deliveryReady) notes.push('Online delivery is being set up. Please WhatsApp us to order for now.');
@@ -42,7 +85,8 @@
 
     const cats = [];
     for (const p of catalog.products) { products[p.id] = p; if (!cats.includes(p.category)) cats.push(p.category); }
-    for (const id of Object.keys(cart)) if (!products[id]) delete cart[id];
+    cart = cart.filter((l) => products[l.productId] && (products[l.productId].cuts || !l.cut));
+    saveCart();
 
     $('#tabs').innerHTML = cats.map((c, i) => `<a href="#cat-${i}" class="${i === 0 ? 'on' : ''}">${esc(c)}</a>`).join('');
     $('#menu').innerHTML = cats.map((c, i) => `
@@ -50,219 +94,239 @@
         <h3>${esc(c)}</h3>
         ${catalog.products.filter((p) => p.category === c).map((p) => `
           <div class="item" data-id="${esc(p.id)}">
-            <div>
+            <button class="thumb ${p.image ? '' : 'empty'}" data-open="${esc(p.id)}" aria-label="${esc(p.name)} details">${p.image ? `<img src="${esc(p.image)}" alt="" loading="lazy">` : PLACEHOLDER}</button>
+            <div class="info" data-open="${esc(p.id)}">
               <div class="name">${esc(p.name)}</div>
               ${p.note ? `<div class="note">${esc(p.note)}</div>` : ''}
               <div class="price">RM ${Number(p.price).toFixed(2)}<small>${unitText(p.unit)}</small></div>
+              ${p.cuts ? '<div class="cuttag">✂ Choose your cut</div>' : ''}
             </div>
             <div class="ctl"></div>
           </div>`).join('')}
       </section>`).join('');
-    for (const el of document.querySelectorAll('.item')) renderCtl(el.dataset.id);
+    for (const el of $$('.item')) renderCtl(el.dataset.id);
     renderBar();
 
-    // highlight active tab while scrolling
-    const tabs = [...document.querySelectorAll('.tabs a')];
+    const tabs = $$('.tabs a');
     const io = new IntersectionObserver((entries) => {
       for (const e of entries) if (e.isIntersecting) { const i = e.target.id.split('-')[1]; tabs.forEach((t, j) => t.classList.toggle('on', String(j) === i)); }
     }, { rootMargin: '-40% 0px -55% 0px' });
-    document.querySelectorAll('.cat').forEach((s) => io.observe(s));
-    if (location.hash === '#cart' && Object.keys(cart).length) openSheet();
+    $$('.cat').forEach((s) => io.observe(s));
+
+    await loadMe();
+    if (location.hash === '#cart' && cart.length) openSheet();
   }
 
-  function stepperHTML(id) {
-    const p = products[id];
-    return `<div class="stepper"><button data-dec="${esc(id)}" aria-label="Less">−</button><span>${qtyText(cart[id], p.unit)}</span><button data-inc="${esc(id)}" aria-label="More">+</button></div>`;
+  function stepperHTML(key, qty, unit) {
+    return `<div class="stepper"><button data-dec="${esc(key)}" aria-label="Less">−</button><span>${qtyText(qty, unit)}</span><button data-inc="${esc(key)}" aria-label="More">+</button></div>`;
   }
   function renderCtl(id) {
-    const el = document.querySelector(`.item[data-id="${CSS.escape(id)}"] .ctl`);
-    if (el) el.innerHTML = cart[id] ? stepperHTML(id) : `<button class="add" data-inc="${esc(id)}">Add</button>`;
+    const el = document.querySelector(`.item[data-id="${CSS.escape(id)}"] .ctl`); const p = products[id];
+    if (!el || !p) return;
+    if (p.cuts) {
+      const q = productQty(id);
+      el.innerHTML = `<button class="add" data-open="${esc(id)}">Add</button>${q ? `<div class="incart">${qtyText(Math.round(q * 100) / 100, p.unit)} in cart</div>` : ''}`;
+      return;
+    }
+    const key = lineKey(id, null); const l = cart.find((x) => x.key === key);
+    el.innerHTML = l ? stepperHTML(key, l.qty, p.unit) : `<button class="add" data-quick="${esc(id)}">Add</button>`;
   }
-  function change(id, dir) {
-    const p = products[id]; if (!p) return;
-    const step = Number(p.step) || 1; const min = Number(p.min) || step;
-    let q = cart[id] || 0;
-    q = dir > 0 ? (q ? q + step : min) : q - step;
-    q = Math.round(q * 100) / 100;
-    if (q < min) delete cart[id]; else cart[id] = Math.min(50, q);
-    saved.set('afm_cart', cart);
-    renderCtl(id); renderBar();
-    if ($('#sheet').classList.contains('show')) { renderLines(); scheduleQuote(); }
-  }
-  function estimate() { return Object.entries(cart).reduce((s, [id, q]) => s + Math.round(Number(products[id]?.price || 0) * 100 * q), 0); }
   function renderBar() {
-    const n = Object.keys(cart).length;
-    $('#cartbar').style.display = n ? 'block' : 'none';
-    $('#cartCount').textContent = n;
+    $('#cartbar').style.display = cart.length ? 'block' : 'none';
+    $('#cartCount').textContent = cart.length;
     $('#cartTotal').textContent = rm(estimate());
   }
 
   document.addEventListener('click', (e) => {
-    const inc = e.target.closest('[data-inc]'); if (inc) return change(inc.dataset.inc, 1);
-    const dec = e.target.closest('[data-dec]'); if (dec) return change(dec.dataset.dec, -1);
-    if (e.target.closest('[data-close]')) closeSheet();
+    const t = e.target;
+    const quick = t.closest('[data-quick]'); if (quick) { const p = products[quick.dataset.quick]; return addToCart(p.id, Number(p.min) || Number(p.step) || 1, null); }
+    const inc = t.closest('[data-inc]'); if (inc) return changeLine(inc.dataset.inc, 1);
+    const dec = t.closest('[data-dec]'); if (dec) return changeLine(dec.dataset.dec, -1);
+    const open = t.closest('[data-open]'); if (open) return openItem(open.dataset.open);
+    if (t.closest('[data-close]')) closeSheet();
+    if (t.closest('[data-close-item]')) closeItem();
   });
 
-  // ---------- checkout sheet ----------
+  // ---------- product sheet (photo, amount, cutting preferences) ----------
+  let item = null;
+  function openItem(id) {
+    const p = products[id]; if (!p) return;
+    item = { p, qty: Number(p.min) || Number(p.step) || 1, by: '', size: '', sizeCustom: '', weight: '', weightCustom: '', cooking: '', note: '' };
+    renderItem();
+    $('#itemSheet').classList.add('show'); document.body.style.overflow = 'hidden';
+  }
+  function closeItem() { $('#itemSheet').classList.remove('show'); if (!$('#sheet').classList.contains('show')) document.body.style.overflow = ''; item = null; }
+  const chip = (attr, val, on, label) => `<button type="button" class="opt ${on ? 'on' : ''}" ${attr}="${esc(val)}">${esc(label)}</button>`;
+  function renderItem() {
+    const { p } = item; const c = catalog.cutting || {};
+    let cutHTML = '';
+    if (p.cuts) {
+      cutHTML = `
+        <div class="cutbox">
+          <h5>How should we cut it?</h5>
+          <div class="opts">${chip('data-by', '', !item.by, 'No preference')}${chip('data-by', 'size', item.by === 'size', 'By size')}${chip('data-by', 'weight', item.by === 'weight', 'By piece weight')}</div>
+          ${item.by === 'size' ? `<div class="opts sub">${(c.sizes || []).map((s) => chip('data-size', s, item.size === s, s)).join('')}${chip('data-size', 'custom', item.size === 'custom', 'Custom')}</div>
+            ${item.size === 'custom' ? '<input class="inp" id="sizeCustom" maxlength="30" placeholder="e.g. 1.5 inch, small cubes">' : ''}` : ''}
+          ${item.by === 'weight' ? `<div class="opts sub">${(c.weights || []).map((g) => chip('data-weight', g, String(item.weight) === String(g), `${g} g`)).join('')}${chip('data-weight', 'custom', item.weight === 'custom', 'Custom')}</div>
+            ${item.weight === 'custom' ? '<div class="withunit"><input class="inp" id="weightCustom" type="number" inputmode="numeric" min="5" max="2000" placeholder="Weight per piece"><span>g</span></div>' : ''}` : ''}
+          <h5>Cooking style <i>(optional)</i></h5>
+          <div class="opts">${(c.cooking || []).map((k) => chip('data-cook', k, item.cooking === k, k)).join('')}</div>
+          <h5>Comment <i>(optional)</i></h5>
+          <textarea class="inp" id="cutNote" rows="2" maxlength="120" placeholder="e.g. remove fat, keep bones separate"></textarea>
+        </div>`;
+    }
+    $('#itemBody').innerHTML = `
+      <div class="ihero ${p.image ? '' : 'empty'}">${p.image ? `<img src="${esc(p.image)}" alt="">` : PLACEHOLDER}</div>
+      <div class="ihead">
+        <h3 id="itemTitle">${esc(p.name)}</h3>
+        ${p.note ? `<p class="muted">${esc(p.note)}</p>` : ''}
+        <div class="iprice">RM ${Number(p.price).toFixed(2)}<small>${unitText(p.unit)}</small></div>
+        <div class="qtyrow"><span>Amount</span><div class="stepper"><button data-iq="-1" aria-label="Less">−</button><span>${qtyText(item.qty, p.unit)}</span><button data-iq="1" aria-label="More">+</button></div></div>
+      </div>
+      ${cutHTML}`;
+    const sc = $('#sizeCustom'); if (sc) { sc.value = item.sizeCustom; sc.addEventListener('input', () => (item.sizeCustom = sc.value)); }
+    const wc = $('#weightCustom'); if (wc) { wc.value = item.weightCustom; wc.addEventListener('input', () => (item.weightCustom = wc.value)); }
+    const nt = $('#cutNote'); if (nt) { nt.value = item.note; nt.addEventListener('input', () => (item.note = nt.value)); }
+    $('#itemAdd').textContent = `Add to cart · ${rm(Math.round(p.price * 100 * item.qty))}`;
+  }
+  $('#itemBody').addEventListener('click', (e) => {
+    if (!item) return;
+    const t = e.target.closest('button'); if (!t) return;
+    const d = t.dataset;
+    if (d.iq) {
+      const step = Number(item.p.step) || 1; const min = Number(item.p.min) || step;
+      item.qty = Math.min(50, Math.max(min, Math.round((item.qty + Number(d.iq) * step) * 100) / 100));
+    } else if ('by' in d) { item.by = d.by; }
+    else if (d.size) item.size = d.size;
+    else if (d.weight) item.weight = d.weight;
+    else if (d.cook) item.cooking = item.cooking === d.cook ? '' : d.cook;
+    else return;
+    renderItem();
+    if (d.size === 'custom') $('#sizeCustom')?.focus();
+    if (d.weight === 'custom') $('#weightCustom')?.focus();
+  });
+  $('#itemAdd').addEventListener('click', () => {
+    if (!item) return;
+    const { p } = item;
+    let cut = null;
+    if (p.cuts) {
+      cut = { by: item.by, size: '', weight: '', cooking: item.cooking, note: item.note.trim().slice(0, 120) };
+      if (item.by === 'size') {
+        cut.size = item.size === 'custom' ? item.sizeCustom.trim().slice(0, 30) : item.size;
+        if (!cut.size) return toast(item.size === 'custom' ? 'Type the piece size you want.' : 'Choose a piece size.');
+      }
+      if (item.by === 'weight') {
+        const g = Math.round(parseFloat(item.weight === 'custom' ? item.weightCustom : item.weight));
+        if (!(g >= 5 && g <= 2000)) return toast(item.weight === 'custom' ? 'Enter a piece weight between 5 and 2000 g.' : 'Choose a piece weight.');
+        cut.weight = String(g);
+      }
+      if (!cut.by && !cut.cooking && !cut.note) cut = null;
+    }
+    addToCart(p.id, item.qty, cut);
+    toast(`Added ${qtyText(item.qty, p.unit)} ${p.name}`);
+    closeItem();
+  });
+
+  // ---------- member ----------
+  async function loadMe() {
+    if (token) {
+      try {
+        const r = await fetch('/api/member', { method: 'POST', headers: { 'Content-Type': 'application/json', ...auth() }, body: JSON.stringify({ action: 'me' }) });
+        if (r.status === 401) { token = null; saved.set('afm_member', null); }
+        else if (r.ok) me = await r.json();
+      } catch {}
+    }
+    $('#acctText').textContent = me ? `Hi, ${me.member.name.split(' ')[0]}` : 'Log in';
+    const w = catalog.welcome; const box = $('#offer');
+    if (w && !me) {
+      box.hidden = false;
+      box.innerHTML = `<b>New member? Get RM${w.amount} off your first order.</b> <span>${w.minSpend ? `Min. spend RM${w.minSpend}. ` : ''}Only ${w.remaining} left.</span> <a href="/account.html?signup=1&next=${encodeURIComponent('/')}">Sign up</a>`;
+    } else if (me?.welcome?.eligible) {
+      box.hidden = false;
+      box.innerHTML = `<b>Your RM${me.welcome.amount} new member offer is ready.</b> <span>It comes off at checkout${me.welcome.minSpend ? ` (min. spend RM${me.welcome.minSpend})` : ''}.</span>`;
+    } else box.hidden = true;
+  }
+
+  // ---------- checkout ----------
   function openSheet() {
     $('#sheet').classList.add('show'); document.body.style.overflow = 'hidden';
-    $('#name').value ||= details.name || ''; $('#phone').value ||= details.phone || ''; $('#email').value ||= details.email || '';
-    $('#unit').value ||= details.unit || '';
-    renderLines(); renderAddress(); initAddressSearch(); scheduleQuote(0);
+    renderDetails();
+    if (!picker) {
+      picker = AddressPicker($('#picker'), { mapsKey: catalog.mapsKey, toast, onChange: onAddressChange });
+      const def = me?.member.addresses?.find((a) => a.id === me.member.defaultAddressId) || me?.member.addresses?.[0];
+      if (def) selectSaved(def.id);
+      else if (details.address?.text) { picker.set(details.address, { silent: true }); $('#unit').value ||= details.unit || ''; }
+    }
+    picker.start();
+    renderLines(); renderSavedAddrs(); scheduleQuote(0);
   }
   function closeSheet() { $('#sheet').classList.remove('show'); document.body.style.overflow = ''; }
   $('#openCart').addEventListener('click', openSheet);
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSheet(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { if ($('#itemSheet').classList.contains('show')) closeItem(); else closeSheet(); } });
+
+  function renderDetails() {
+    const bar = $('#loginBar');
+    if (me) {
+      const m = me.member;
+      bar.innerHTML = `Ordering as <b>${esc(m.name)}</b> · ${esc(m.phone.replace(/^\+60/, '0'))}${m.email ? ` · ${esc(m.email)}` : ''} <a href="/account.html">My account</a>`;
+      $('#guestFields').hidden = true;
+    } else {
+      const w = catalog.welcome;
+      bar.innerHTML = `Have an account? <a href="/account.html?next=${encodeURIComponent('/#cart')}">Log in</a>${w ? ` · New member? <a href="/account.html?signup=1&next=${encodeURIComponent('/#cart')}">Sign up</a> and get RM${w.amount} off` : ''}`;
+      $('#guestFields').hidden = false;
+      $('#name').value ||= details.name || ''; $('#phone').value ||= details.phone || ''; $('#email').value ||= details.email || '';
+    }
+  }
 
   function renderLines() {
-    const ids = Object.keys(cart);
-    if (!ids.length) { $('#lines').innerHTML = '<div class="empty">Your cart is empty.</div>'; return; }
-    $('#lines').innerHTML = ids.map((id) => {
-      const p = products[id];
-      return `<div class="line"><div><div class="n">${esc(p.name)}</div><div class="s">RM ${Number(p.price).toFixed(2)}${unitText(p.unit)}</div></div>
-        ${stepperHTML(id)}<div></div><div class="amt">${rm(Math.round(p.price * 100 * cart[id]))}</div></div>`;
+    if (!cart.length) { $('#lines').innerHTML = '<div class="empty">Your cart is empty.</div>'; return; }
+    $('#lines').innerHTML = cart.map((l) => {
+      const p = products[l.productId];
+      const ct = cutText(l.cut);
+      return `<div class="line"><div><div class="n">${esc(p.name)}</div>${ct ? `<div class="cut">✂ ${esc(ct)}</div>` : ''}<div class="s">RM ${Number(p.price).toFixed(2)}${unitText(p.unit)}</div></div>
+        ${stepperHTML(l.key, l.qty, p.unit)}<div></div><div class="amt">${rm(Math.round(p.price * 100 * l.qty))}</div></div>`;
     }).join('');
   }
 
-  // ---------- address ----------
-  // With a Google Maps key: search box + a map with a fixed centre pin (move the map to move the pin, like Lalamove/Grab).
-  let mapsReady = false; let map = null; let moved = false; let picking = false; let pinSeq = 0;
-  const KL = { lat: 3.139, lng: 101.6869 };
-  const distM = (a, b) => {
-    const R = 6371000, r = (x) => (x * Math.PI) / 180;
-    const h = Math.sin(r(b.lat - a.lat) / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(r(b.lng - a.lng) / 2) ** 2;
-    return 2 * R * Math.asin(Math.sqrt(h));
-  };
-
-  function setAddress(a, { fromMap = false } = {}) {
-    address = a; details.address = a; saved.set('afm_details', details);
-    renderAddress(); scheduleQuote(0);
-    if (!fromMap && a && isFinite(a.lat)) showMap({ lat: a.lat, lng: a.lng }, 17);
+  // saved addresses (members)
+  function renderSavedAddrs() {
+    const list = me?.member.addresses || [];
+    const box = $('#savedAddrs');
+    box.hidden = !list.length;
+    box.innerHTML = list.map((a) => `<button type="button" class="opt ${selectedSaved === a.id ? 'on' : ''}" data-saved="${esc(a.id)}">${esc(a.label)}</button>`).join('')
+      + `<button type="button" class="opt ${!selectedSaved ? 'on' : ''}" data-saved="">+ New address</button>`;
+    $('#saveAddrRow').hidden = !(me && !selectedSaved && picker?.get());
   }
-  function renderAddress() {
-    const picked = !!(address && address.text);
-    $('#addrPicked').style.display = picked ? 'block' : 'none';
-    $('#addrSearch').style.display = picked ? 'none' : 'block';
-    if (picked) { $('#addrText').textContent = address.text; $('#addrMeta').textContent = quote?.branch ? `From our ${quote.branch.name} shop${quote.distanceKm ? ` · ${quote.distanceKm} km` : ''}` : ''; }
-    if (!picked && !picking) $('#mapWrap').hidden = true;
+  function selectSaved(id) {
+    const a = (me?.member.addresses || []).find((x) => x.id === id);
+    selectedSaved = a ? a.id : null;
+    if (a) { picker.set(a, { silent: true }); $('#unit').value = a.unit || ''; $('#notes').value = a.notes || ''; }
+    else { picker.set(null, { silent: true }); $('#unit').value = ''; $('#notes').value = ''; }
+    renderSavedAddrs(); scheduleQuote(0);
   }
-  $('#addrChange').addEventListener('click', () => { address = null; picking = false; renderAddress(); scheduleQuote(0); setTimeout(() => $('#acHost').querySelector('input,gmp-place-autocomplete')?.focus(), 50); });
-
-  async function showMap(center, zoom) {
-    if (!mapsReady) return;
-    const wrap = $('#mapWrap'); wrap.hidden = false;
-    $('#mapHint').textContent = address?.text ? 'Not exact? Drag the map so the pin sits on your door.' : 'Drag the map to put the pin on your delivery spot.';
-    try {
-      if (!map) {
-        const { Map } = await google.maps.importLibrary('maps');
-        map = new Map($('#map'), { center, zoom, disableDefaultUI: true, zoomControl: true, gestureHandling: 'greedy', clickableIcons: false });
-        map.addListener('dragstart', () => { moved = true; wrap.classList.add('moving'); });
-        map.addListener('click', (e) => { if (e.latLng) { moved = true; map.panTo(e.latLng); } });
-        map.addListener('idle', onMapIdle);
-      } else { map.setCenter(center); if (zoom) map.setZoom(zoom); }
-    } catch (e) { console.warn('Map failed', e); wrap.hidden = true; }
-  }
-  async function reverseGeocode(lat, lng) {
-    try {
-      const { Geocoder } = await google.maps.importLibrary('geocoding');
-      const r = await new Geocoder().geocode({ location: { lat, lng } });
-      return r.results?.[0]?.formatted_address || '';
-    } catch { return ''; }
-  }
-  async function onMapIdle() {
-    $('#mapWrap').classList.remove('moving');
-    const c = map.getCenter(); const pos = { lat: c.lat(), lng: c.lng() };
-    const hasPin = address && isFinite(address.lat);
-    // a drag/tap, or a pinch-zoom that shifted the centre away from the current pin
-    if (!(moved || (hasPin && address.text && distM(address, pos) > 5))) return;
-    moved = false;
-    const seq = ++pinSeq;
-    let text = address?.text || '';
-    if (!text || !hasPin || distM(address, pos) > 40) text = (await reverseGeocode(pos.lat, pos.lng)) || text || `Pinned location ${pos.lat.toFixed(5)}, ${pos.lng.toFixed(5)}`;
-    if (seq !== pinSeq) return; // moved again meanwhile
-    const wasPicking = picking; picking = false;
-    $('#addrErr').textContent = '';
-    setAddress({ text, lat: pos.lat, lng: pos.lng, pinned: true }, { fromMap: true });
-    if (wasPicking && map.getZoom() < 16) map.setZoom(17);
-    $('#mapHint').textContent = 'Pin set. Drag again to fine-tune.';
-  }
-  $('#pickMap').addEventListener('click', () => {
-    picking = true;
-    showMap(address && isFinite(address.lat) ? { lat: address.lat, lng: address.lng } : KL, address ? 17 : 12);
-    setTimeout(() => $('#mapWrap').scrollIntoView({ behavior: 'smooth', block: 'center' }), 60);
-  });
-
-  let searchReady = false;
-  function loadMaps(key) {
-    return new Promise((resolve, reject) => {
-      if (window.google?.maps?.importLibrary) return resolve();
-      window.__afmMaps = resolve;
-      const s = document.createElement('script');
-      s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&v=weekly&loading=async&libraries=places&callback=__afmMaps`;
-      s.async = true; s.onerror = reject; document.head.appendChild(s);
-    });
-  }
-  async function placeToAddress(place) {
-    await place.fetchFields({ fields: ['displayName', 'formattedAddress', 'location'] });
-    const name = place.displayName || ''; const fa = place.formattedAddress || '';
-    const text = name && !fa.startsWith(name) ? `${name}, ${fa}` : fa;
-    setAddress({ text, lat: place.location.lat(), lng: place.location.lng() });
-  }
-  async function initAddressSearch() {
-    if (searchReady) return; searchReady = true;
-    const host = $('#acHost');
-    if (catalog.mapsKey) {
-      try {
-        await loadMaps(catalog.mapsKey);
-        const { PlaceAutocompleteElement } = await google.maps.importLibrary('places');
-        const el = new PlaceAutocompleteElement({ includedRegionCodes: ['my'] });
-        host.appendChild(el);
-        el.addEventListener('gmp-select', async (ev) => { try { await placeToAddress(ev.placePrediction.toPlace()); } catch (e) { $('#addrErr').textContent = 'Could not use that address, please try another.'; } });
-        el.addEventListener('gmp-placeselect', async (ev) => { try { await placeToAddress(ev.place); } catch {} });
-        mapsReady = true;
-        $('#pickMap').hidden = false;
-        if (address && isFinite(address.lat) && address.text) showMap({ lat: address.lat, lng: address.lng }, 17);
-        return;
-      } catch (e) { console.warn('Maps failed', e); }
+  $('#savedAddrs').addEventListener('click', (e) => { const b = e.target.closest('[data-saved]'); if (b) selectSaved(b.dataset.saved); });
+  function onAddressChange(a) {
+    if (selectedSaved) {
+      const s = me.member.addresses.find((x) => x.id === selectedSaved);
+      if (!a || !s || Math.abs(s.lat - a.lat) > 0.0003 || Math.abs(s.lng - a.lng) > 0.0003) selectedSaved = null;
     }
-    // No map search available: location button + typed address
-    host.innerHTML = '<p class="muted" style="margin:0">Tap “Use my current location” while at the delivery address, then type the street address below.</p>';
-    $('#addrManualWrap').hidden = false;
+    if (!me) { details.address = a; saved.set('afm_details', details); }
+    renderSavedAddrs(); scheduleQuote(0);
   }
-  $('#useLoc').addEventListener('click', () => {
-    if (!navigator.geolocation) return toast('Location is not available on this device.');
-    $('#useLoc').textContent = 'Finding you…';
-    navigator.geolocation.getCurrentPosition(async (pos) => {
-      $('#useLoc').textContent = 'Use my current location';
-      const lat = pos.coords.latitude, lng = pos.coords.longitude;
-      let text = $('#addrManual').value.trim();
-      if (!text && window.google?.maps?.importLibrary) {
-        try {
-          const { Geocoder } = await google.maps.importLibrary('geocoding');
-          const r = await new Geocoder().geocode({ location: { lat, lng } });
-          text = r.results?.[0]?.formatted_address || '';
-        } catch {}
-      }
-      if (!text) { address = { text: '', lat, lng }; $('#addrManualWrap').hidden = false; $('#addrManual').focus(); $('#addrErr').textContent = 'Got your location. Now type your street address.'; scheduleQuote(0); return; }
-      $('#addrErr').textContent = '';
-      setAddress({ text, lat, lng });
-    }, () => { $('#useLoc').textContent = 'Use my current location'; toast('Could not get your location. Please allow location access.'); }, { enableHighAccuracy: true, timeout: 12000 });
-  });
-  $('#addrManual').addEventListener('change', () => {
-    const t = $('#addrManual').value.trim();
-    if (t && address && isFinite(address.lat)) { $('#addrErr').textContent = ''; setAddress({ ...address, text: t }); }
-  });
 
   // ---------- pricing ----------
   function scheduleQuote(delay = 350) { clearTimeout(quoteTimer); quoteTimer = setTimeout(getQuote, delay); }
   async function getQuote() {
-    const items = Object.entries(cart).map(([productId, qty]) => ({ productId, qty }));
-    if (!items.length) { quoteSeq++; quoting = false; quote = null; renderSummary(); return; }
+    if (!cart.length) { quoteSeq++; quoting = false; quote = null; renderSummary(); return; }
     const seq = ++quoteSeq;
     quoting = true; updatePay();
     $('#sum').style.opacity = 0.55;
+    const addr = picker?.get();
     try {
-      const r = await fetch('/api/quote', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items, phone: $('#phone').value, couponCode, location: address && isFinite(address.lat) ? { lat: address.lat, lng: address.lng, address: address.text } : null }) });
+      const r = await fetch('/api/quote', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...auth() },
+        body: JSON.stringify({ items: cart.map(({ productId, qty, cut }) => ({ productId, qty, cut })), phone: $('#phone').value, couponCode, location: addr ? { lat: addr.lat, lng: addr.lng, address: addr.text } : null }),
+      });
       const q = await r.json();
       if (seq !== quoteSeq) return;
       if (!r.ok) throw new Error(q.error);
@@ -271,11 +335,13 @@
     if (seq !== quoteSeq) return;
     quoting = false;
     $('#sum').style.opacity = 1;
-    renderSummary(); renderAddress();
+    picker?.setMeta(quote?.branch ? `From our ${quote.branch.name} shop${quote.distanceKm ? ` · ${quote.distanceKm} km` : ''}` : '');
+    renderSummary();
   }
   function renderSummary() {
     const cm = $('#couponMsg');
     cm.className = 'msg'; cm.textContent = '';
+    $('#welcomeMsg').textContent = quote?.welcomeMessage || '';
     if (!quote) { $('#sum').innerHTML = ''; return updatePay(); }
     if (couponCode) {
       if (quote.couponError) { cm.className = 'msg err'; cm.textContent = quote.couponError; }
@@ -296,12 +362,13 @@
   }
   function updatePay() {
     const b = $('#payBtn'); let why = '';
-    if (!Object.keys(cart).length) why = 'Your cart is empty';
+    const addr = picker?.get();
+    if (!cart.length) why = 'Your cart is empty';
     else if (!catalog.open) why = 'Closed for orders now';
     else if (!quote || quoting) why = 'Updating prices…';
     else if (quote.errors?.length) why = quote.errors[0];
-    else if (!address || !address.text || !isFinite(address.lat)) why = 'Add your delivery address';
-    else if (quote.deliverySen == null) why = quote.deliveryError ? 'Delivery not available' : 'Getting delivery price…';
+    else if (!addr) why = 'Add your delivery address';
+    else if (quote.deliverySen == null) why = quote.deliveryError ? (quote.outOfArea ? 'Outside delivery area' : 'Delivery not available') : 'Getting delivery price…';
     b.disabled = !!why || paying;
     b.textContent = paying ? 'Opening payment…' : why || `Pay ${rm(quote.totalSen)}`;
   }
@@ -312,18 +379,25 @@
 
   // ---------- pay ----------
   $('#payBtn').addEventListener('click', async () => {
-    const name = $('#name').value.trim(); const phone = $('#phone').value.trim(); const email = $('#email').value.trim();
-    if (name.length < 2) { $('#name').focus(); return toast('Please enter your name.'); }
-    if (phone.replace(/\D/g, '').length < 9) { $('#phone').focus(); return toast('Please enter your phone number.'); }
-    Object.assign(details, { name, phone, email, unit: $('#unit').value.trim() }); saved.set('afm_details', details);
+    const addr = picker.get(); if (!addr) return;
+    let customer;
+    if (me) customer = { name: me.member.name, phone: me.member.phone, email: me.member.email };
+    else {
+      const name = $('#name').value.trim(); const phone = $('#phone').value.trim(); const email = $('#email').value.trim();
+      if (name.length < 2) { $('#name').focus(); return toast('Please enter your name.'); }
+      if (phone.replace(/\D/g, '').length < 9) { $('#phone').focus(); return toast('Please enter your phone number.'); }
+      customer = { name, phone, email };
+      Object.assign(details, { name, phone, email, unit: $('#unit').value.trim() }); saved.set('afm_details', details);
+    }
     paying = true; updatePay();
     try {
       const r = await fetch('/api/checkout', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...auth() },
         body: JSON.stringify({
-          items: Object.entries(cart).map(([productId, qty]) => ({ productId, qty })),
-          customer: { name, phone, email }, couponCode,
-          address: { text: address.text, lat: address.lat, lng: address.lng, unit: $('#unit').value.trim(), notes: $('#notes').value.trim() },
+          items: cart.map(({ productId, qty, cut }) => ({ productId, qty, cut })),
+          customer, couponCode,
+          address: { text: addr.text, lat: addr.lat, lng: addr.lng, unit: $('#unit').value.trim(), notes: $('#notes').value.trim() },
+          saveAddress: !!(me && !selectedSaved && $('#saveAddr').checked), addressLabel: $('#saveAddrLabel').value.trim() || 'Home',
         }),
       });
       const d = await r.json();

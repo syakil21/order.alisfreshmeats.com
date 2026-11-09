@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>My account · Ali's Fresh Meats</title>
+  <meta name="theme-color" content="#1b1917">
+  <meta name="robots" content="noindex">
+  <link rel="icon" href="/logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Oswald:wght@500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="top">
+    <div class="wrap">
+      <a href="/"><img class="logo" src="/logo.png" alt="Ali's" style="width:76px"></a>
+      <div class="brand"><h1>Fresh Meats</h1><p>My account</p></div>
+      <a class="acct" href="/">← Shop</a>
+    </div>
+  </header>
+
+  <main class="wrap acctwrap">
+    <div class="spinner" id="loading" aria-label="Loading"></div>
+
+    <!-- log in / sign up -->
+    <div class="status-card" id="authView" hidden>
+      <div class="seg" role="tablist">
+        <button type="button" class="on" data-auth="login" role="tab">Log in</button>
+        <button type="button" data-auth="signup" role="tab">Sign up</button>
+      </div>
+      <form id="loginForm" autocomplete="on">
+        <label class="f"><span>Phone number or email</span><input class="inp" name="login" autocomplete="username" required placeholder="012-345 6789 or you@email.com"></label>
+        <label class="f"><span>Password</span><input class="inp" name="password" type="password" autocomplete="current-password" required></label>
+        <button class="bigbtn" style="width:100%;border:0">Log in</button>
+        <p class="muted" style="margin:12px 0 0">Forgot your password? <a id="forgot" href="#" target="_blank" rel="noopener">WhatsApp us</a> and we'll reset it.</p>
+      </form>
+      <form id="signupForm" hidden autocomplete="on">
+        <div class="offerbox" id="signupOffer" hidden></div>
+        <label class="f"><span>Your name</span><input class="inp" name="name" autocomplete="name" required></label>
+        <label class="f"><span>Phone number</span><input class="inp" name="phone" type="tel" inputmode="tel" autocomplete="tel" required placeholder="012-345 6789"></label>
+        <label class="f"><span>Email <i>(optional, for receipts and logging in)</i></span><input class="inp" name="email" type="email" autocomplete="email"></label>
+        <label class="f"><span>Password <i>(at least 6 characters)</i></span><input class="inp" name="password" type="password" autocomplete="new-password" required minlength="6"></label>
+        <button class="bigbtn" style="width:100%;border:0">Create my account</button>
+      </form>
+      <p class="msg err" id="authErr"></p>
+    </div>
+
+    <!-- member dashboard -->
+    <div id="dash" hidden>
+      <div class="status-card">
+        <h2 id="hello">Hi</h2>
+        <div id="perks"></div>
+        <div class="row-btns"><a class="bigbtn" href="/">Order now</a><button class="bigbtn alt" id="logout" type="button">Log out</button></div>
+      </div>
+
+      <div class="status-card">
+        <h3>My details</h3>
+        <form id="profileForm">
+          <label class="f"><span>Name</span><input class="inp" name="name" autocomplete="name" required></label>
+          <label class="f"><span>Phone number</span><input class="inp" name="phone" type="tel" inputmode="tel" autocomplete="tel" required></label>
+          <label class="f"><span>Email</span><input class="inp" name="email" type="email" autocomplete="email"></label>
+          <button class="btn2 tall">Save details</button> <span class="msg ok" id="profileOk"></span>
+        </form>
+      </div>
+
+      <div class="status-card">
+        <div class="cardhead"><h3>My addresses</h3><button class="btn2" id="addAddr" type="button">+ Add address</button></div>
+        <div id="addrList"></div>
+        <div class="addrform" id="addrForm" hidden>
+          <h4 id="addrFormTitle">New address</h4>
+          <label class="f"><span>Name this address</span><input class="inp" id="addrLabel" maxlength="30" placeholder="Home, Office, Mum's house"></label>
+          <div id="acctPicker"></div>
+          <div class="row2" style="margin-top:12px">
+            <label class="f"><span>Unit / floor <i>(optional)</i></span><input class="inp" id="addrUnit" placeholder="e.g. B-12-3"></label>
+            <label class="f"><span>Delivery notes <i>(optional)</i></span><input class="inp" id="addrNotes" placeholder="e.g. Leave with guard"></label>
+          </div>
+          <label class="check"><input type="checkbox" id="addrDefault"> Use as my default address</label>
+          <div class="row-btns"><button class="btn2 tall dark" id="saveAddrBtn" type="button">Save address</button><button class="btn2 tall" id="cancelAddr" type="button">Cancel</button></div>
+          <p class="msg err" id="addrErr"></p>
+        </div>
+      </div>
+
+      <div class="status-card">
+        <h3>My orders</h3>
+        <div id="orders"><p class="muted">Loading…</p></div>
+      </div>
+
+      <div class="status-card">
+        <h3>Change password</h3>
+        <form id="pwForm">
+          <label class="f"><span>Current password</span><input class="inp" name="current" type="password" autocomplete="current-password" required></label>
+          <label class="f"><span>New password</span><input class="inp" name="next" type="password" autocomplete="new-password" required minlength="6"></label>
+          <button class="btn2 tall">Change password</button> <span class="msg ok" id="pwOk"></span>
+        </form>
+      </div>
+    </div>
+  </main>
+  <div class="toast" id="toast"></div>
+  <script src="/addr.js"></script>
+  <script src="/account.js"></script>
+</body>
+</html>

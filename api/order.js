@@ -23,7 +23,7 @@ module.exports = handler(async (req, res) => {
   send(res, 200, {
     no: order.no, createdAt: order.createdAt, name: order.customer.name, branchName: order.branchName,
     address: order.address.text, unit: order.address.unit,
-    items: order.items.map(({ name, qty, unit, lineSen }) => ({ name, qty, unit, lineSen })),
+    items: order.items.map(({ name, qty, unit, lineSen, cutText }) => ({ name, qty, unit, lineSen, cutText: cutText || '' })),
     subtotalSen: order.subtotalSen, discounts: order.discounts || [], deliverySen: order.deliverySen, totalSen: order.totalSen,
     paid: order.payment.status === 'paid',
     payUrl: order.payment.status === 'pending' ? order.payment.billUrl : '',

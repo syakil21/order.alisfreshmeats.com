@@ -45,7 +45,7 @@
       $('#wa').href = `https://wa.me/${o.whatsapp}?text=${encodeURIComponent(`Hi, about my order ${o.no}`)}`;
       try {
         const last = JSON.parse(localStorage.getItem('afm_last') || 'null');
-        if (last && last.id === id) { localStorage.setItem('afm_last', JSON.stringify({ id, t, no: o.no })); if (o.paid) localStorage.removeItem('afm_cart'); }
+        if (last && last.id === id) { localStorage.setItem('afm_last', JSON.stringify({ id, t, no: o.no })); if (o.paid) { localStorage.removeItem('afm_cart'); localStorage.removeItem('afm_cart2'); } }
       } catch {}
 
       const at = ORDER.indexOf(o.stage);
@@ -71,7 +71,7 @@
         if (o.trackUrl) body += `<a class="bigbtn" href="${esc(o.trackUrl)}" target="_blank" rel="noopener">Track driver live</a>`;
       }
       const items = `<table class="sum" style="margin-top:18px">
-        ${o.items.map((i) => `<tr><td>${esc(i.name)} <span class="muted">× ${qtyText(i.qty, i.unit)}</span></td><td>${rm(i.lineSen)}</td></tr>`).join('')}
+        ${o.items.map((i) => `<tr><td>${esc(i.name)} <span class="muted">× ${qtyText(i.qty, i.unit)}</span>${i.cutText ? `<div class="muted" style="font-size:12.5px">✂ ${esc(i.cutText)}</div>` : ''}</td><td>${rm(i.lineSen)}</td></tr>`).join('')}
         ${o.discounts.map((d) => `<tr class="disc"><td>${esc(d.label)}</td><td>− ${rm(d.sen)}</td></tr>`).join('')}
         <tr><td>Delivery</td><td>${rm(o.deliverySen)}</td></tr>
         <tr class="tot"><td>Total</td><td>${rm(o.totalSen)}</td></tr></table>`;

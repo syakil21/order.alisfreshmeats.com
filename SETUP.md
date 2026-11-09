@@ -115,3 +115,42 @@ When everything works, switch Billplz and Lalamove to live keys (steps 4.5 and 5
 
 ## Try it on a computer first (optional)
 `npm install`, then `npm run dev`, then open http://localhost:3000. This runs the whole flow with **fake** Billplz, Lalamove and PrintNode, so no accounts are needed. The dashboard is at `/admin.html` with passcode `1234`. To move a fake delivery forward, open `/__mock/calls` to find the Lalamove order id, then visit `/__mock/lalamove/advance/<id>`.
+
+---
+
+## Member accounts, photos, cutting, delivery area and labels
+
+**Member accounts:** `order.alisfreshmeats.com/account.html`
+- Customers sign up with name, phone, optional email and a password, then log in with their phone **or** email.
+- On their page they can update their details, save addresses (with the map pin), change their password and see their orders.
+- At checkout, members don't type their details again, and their default address is filled in.
+- Forgotten password: the customer WhatsApps you. Go to **Customers → Registered members → Reset password** and send them the new one on WhatsApp.
+
+**New member offer:** RM15 off the first paid order, for the first 100 members.
+- Each phone number can only have one account.
+- Phone numbers that already have a paid order don't get the offer.
+- Change the amount, the limit or a minimum spend under **Settings → New member offer**.
+- By default customers get the single biggest discount: member %, new member offer or coupon. Tick **Discounts can be combined** to allow all of them together.
+
+**Product photos:** **Prices** → click the photo box → choose a picture.
+- It's resized automatically and shows on the shop straight away.
+- Click **remove** to delete it.
+
+**Cutting options:** on products with **Cutting** ticked (Prices tab), customers can choose:
+- **piece size**: 1 to 4 inch, or type their own
+- **piece weight**: 10 to 100 g, or type their own
+- **cooking style**: curry cut, kurma, chukka or briyani
+- a comment
+
+These show in the dashboard and on the label. Edit the lists under **Settings → Cutting options**.
+
+**Delivery area:** each shop has a delivery radius (straight-line distance) under **Settings → Branches**. The defaults are Selayang 48 km and Brickfields 55 km:
+- Inside: Kuala Kubu Bharu (~35 km from Selayang), Kuala Selangor (~45 km from Selayang) and Seremban (~53 km from Brickfields).
+- Outside: places further out, such as Tanjung Malim and Port Dickson.
+
+After entering your real shop coordinates, check the radius values and adjust if needed. Customers outside the area see the delivery area message and can't pay.
+
+**Labels:** set the sticker size as you read it (e.g. 50 × 30), then use **Print test label**.
+- **Turn print 90°** is on by default. It fixes labels coming out sideways (portrait).
+- If the label is still sideways, untick it. If it's upside down, tick **Turn print 180°**.
+- **Preview label** shows the layout.

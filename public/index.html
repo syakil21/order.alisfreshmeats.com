@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Ali's Fresh Meats · Order Online</title>
-  <meta name="description" content="Order fresh local lamb, imported mutton and lamb from Ali's Fresh Meats (since 1975). Pay online, delivered by Lalamove from Selayang and Brickfields.">
+  <meta name="description" content="Order fresh local lamb, imported mutton and lamb from Ali's Fresh Meats (since 1975). Cut the way you cook, pay online, delivered by Lalamove from Selayang and Brickfields.">
   <meta name="theme-color" content="#1b1917">
   <link rel="icon" href="/logo.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -20,22 +20,28 @@
         <h1>Fresh Meats</h1>
         <p>Since 1975</p>
       </div>
-      <a class="wa" id="wa" href="#" target="_blank" rel="noopener">
+      <a class="acct" id="acct" href="/account.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>
+        <span id="acctText">Log in</span>
+      </a>
+      <a class="wa" id="wa" href="#" target="_blank" rel="noopener" aria-label="WhatsApp us">
         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm5.8 14.2c-.2.7-1.4 1.3-2 1.4-.5.1-1.2.1-1.9-.1-.4-.1-1-.3-1.7-.6-3-1.3-4.9-4.3-5.1-4.5-.1-.2-1.2-1.6-1.2-3s.8-2.2 1-2.5c.3-.3.6-.4.8-.4h.6c.2 0 .4 0 .6.5l.9 2.1c.1.2.1.3 0 .5l-.3.5-.4.5c-.1.1-.3.3-.1.6.2.3.8 1.3 1.7 2.1 1.2 1 2.1 1.3 2.4 1.5.3.1.5.1.6-.1l.9-1.1c.2-.3.4-.2.7-.1l2 .9c.3.1.5.2.5.3.1.2.1.8-.1 1.4Z"/></svg>
-        WhatsApp
+        <span class="hide-xs">WhatsApp</span>
       </a>
     </div>
   </header>
 
   <main class="wrap">
     <div class="hero">
-      <h2>Fresh lamb &amp; mutton,<br><em>delivered to your door</em></h2>
+      <h2>Fresh lamb &amp; mutton,<br><em>cut the way you cook</em></h2>
       <div class="chips">
         <span class="chip" id="openChip">…</span>
         <span class="chip">Selayang · Brickfields</span>
         <span class="chip">Pay online · FPX &amp; cards</span>
         <span class="chip">Delivered by Lalamove</span>
       </div>
+      <p class="area" id="areaNote"></p>
+      <div class="offer" id="offer" hidden></div>
       <a class="last-order" id="lastOrder" href="#">Track your last order →</a>
       <div class="notice" id="notice" hidden></div>
     </div>
@@ -49,6 +55,17 @@
     <button id="openCart"><span><span class="count" id="cartCount">0</span>View cart</span><span id="cartTotal">RM 0.00</span></button>
   </div>
 
+  <!-- product sheet: photo, quantity and cutting preferences -->
+  <div class="sheet bottom" id="itemSheet" role="dialog" aria-modal="true" aria-labelledby="itemTitle">
+    <div class="scrim" data-close-item></div>
+    <div class="panel">
+      <button class="x floating" data-close-item aria-label="Close">×</button>
+      <div id="itemBody"></div>
+      <div class="pay"><button id="itemAdd">Add to cart</button></div>
+    </div>
+  </div>
+
+  <!-- checkout -->
   <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
     <div class="scrim" data-close></div>
     <div class="panel">
@@ -61,32 +78,28 @@
 
       <section>
         <h4>Your details</h4>
-        <label class="f"><span>Name</span><input class="inp" id="name" autocomplete="name" placeholder="Your name"></label>
-        <div class="row2">
-          <label class="f"><span>Phone</span><input class="inp" id="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="012-345 6789"></label>
-          <label class="f"><span>Email <i>(for receipt)</i></span><input class="inp" id="email" type="email" autocomplete="email" placeholder="optional"></label>
+        <div class="loginbar" id="loginBar"></div>
+        <div id="guestFields">
+          <label class="f"><span>Name</span><input class="inp" id="name" autocomplete="name" placeholder="Your name"></label>
+          <div class="row2">
+            <label class="f"><span>Phone</span><input class="inp" id="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="012-345 6789"></label>
+            <label class="f"><span>Email <i>(for receipt)</i></span><input class="inp" id="email" type="email" autocomplete="email" placeholder="optional"></label>
+          </div>
         </div>
       </section>
 
       <section>
         <h4>Delivery address</h4>
-        <div id="addrSearch">
-          <label class="f"><span>Search your address or building</span><div id="acHost"></div></label>
-          <div class="addr-actions"><button class="linkbtn" id="useLoc" type="button">Use my current location</button><button class="linkbtn" id="pickMap" type="button" hidden>Pick on map</button></div>
-        </div>
-        <div class="addr-picked" id="addrPicked"><b id="addrText"></b><span class="muted" id="addrMeta"></span><br><button type="button" id="addrChange">Change address</button></div>
-        <div class="mapwrap" id="mapWrap" hidden>
-          <div id="map"></div>
-          <span class="pin-dot"></span>
-          <svg class="pin" viewBox="0 0 34 44" aria-hidden="true"><path d="M17 0C7.6 0 0 7.5 0 16.8 0 29.4 17 44 17 44s17-14.6 17-27.2C34 7.5 26.4 0 17 0z" fill="#d42a1f"/><circle cx="17" cy="16.5" r="6.5" fill="#fff"/></svg>
-          <div class="maphint" id="mapHint"></div>
-        </div>
-        <div id="addrManualWrap" hidden><label class="f"><span>Address <i>(street, area, postcode)</i></span><input class="inp" id="addrManual" placeholder="e.g. 12 Jalan Ipoh, Selayang 68100"></label></div>
+        <div class="saved-addrs" id="savedAddrs" hidden></div>
+        <div id="picker"></div>
         <div class="row2" style="margin-top:12px">
           <label class="f"><span>Unit / floor <i>(optional)</i></span><input class="inp" id="unit" placeholder="e.g. B-12-3"></label>
-          <label class="f"><span>Notes <i>(optional)</i></span><input class="inp" id="notes" placeholder="Cutting or delivery notes"></label>
+          <label class="f"><span>Delivery notes <i>(optional)</i></span><input class="inp" id="notes" placeholder="e.g. Leave with guard"></label>
         </div>
-        <div class="msg err" id="addrErr"></div>
+        <div class="save-addr" id="saveAddrRow" hidden>
+          <label><input type="checkbox" id="saveAddr" checked> Save to my addresses as</label>
+          <input class="inp sm" id="saveAddrLabel" value="Home" maxlength="30">
+        </div>
       </section>
 
       <section>
@@ -97,6 +110,7 @@
 
       <section>
         <table class="sum" id="sum"></table>
+        <p class="msg" id="welcomeMsg"></p>
         <p class="muted" id="checkoutNote"></p>
       </section>
 
@@ -107,6 +121,7 @@
     </div>
   </div>
   <div class="toast" id="toast"></div>
+  <script src="/addr.js"></script>
   <script src="/shop.js"></script>
 </body>
 </html>

@@ -72,9 +72,15 @@
         <h4>Delivery address</h4>
         <div id="addrSearch">
           <label class="f"><span>Search your address or building</span><div id="acHost"></div></label>
-          <button class="linkbtn" id="useLoc" type="button">Use my current location</button>
+          <div class="addr-actions"><button class="linkbtn" id="useLoc" type="button">Use my current location</button><button class="linkbtn" id="pickMap" type="button" hidden>Pick on map</button></div>
         </div>
         <div class="addr-picked" id="addrPicked"><b id="addrText"></b><span class="muted" id="addrMeta"></span><br><button type="button" id="addrChange">Change address</button></div>
+        <div class="mapwrap" id="mapWrap" hidden>
+          <div id="map"></div>
+          <span class="pin-dot"></span>
+          <svg class="pin" viewBox="0 0 34 44" aria-hidden="true"><path d="M17 0C7.6 0 0 7.5 0 16.8 0 29.4 17 44 17 44s17-14.6 17-27.2C34 7.5 26.4 0 17 0z" fill="#d42a1f"/><circle cx="17" cy="16.5" r="6.5" fill="#fff"/></svg>
+          <div class="maphint" id="mapHint"></div>
+        </div>
         <div id="addrManualWrap" hidden><label class="f"><span>Address <i>(street, area, postcode)</i></span><input class="inp" id="addrManual" placeholder="e.g. 12 Jalan Ipoh, Selayang 68100"></label></div>
         <div class="row2" style="margin-top:12px">
           <label class="f"><span>Unit / floor <i>(optional)</i></span><input class="inp" id="unit" placeholder="e.g. B-12-3"></label>

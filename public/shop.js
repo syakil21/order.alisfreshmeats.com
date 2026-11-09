@@ -125,17 +125,72 @@
   }
 
   // ---------- address ----------
-  function setAddress(a) {
+  // With a Google Maps key: search box + a map with a fixed centre pin (move the map to move the pin, like Lalamove/Grab).
+  let mapsReady = false; let map = null; let moved = false; let picking = false; let pinSeq = 0;
+  const KL = { lat: 3.139, lng: 101.6869 };
+  const distM = (a, b) => {
+    const R = 6371000, r = (x) => (x * Math.PI) / 180;
+    const h = Math.sin(r(b.lat - a.lat) / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(r(b.lng - a.lng) / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(h));
+  };
+
+  function setAddress(a, { fromMap = false } = {}) {
     address = a; details.address = a; saved.set('afm_details', details);
     renderAddress(); scheduleQuote(0);
+    if (!fromMap && a && isFinite(a.lat)) showMap({ lat: a.lat, lng: a.lng }, 17);
   }
   function renderAddress() {
     const picked = !!(address && address.text);
     $('#addrPicked').style.display = picked ? 'block' : 'none';
     $('#addrSearch').style.display = picked ? 'none' : 'block';
     if (picked) { $('#addrText').textContent = address.text; $('#addrMeta').textContent = quote?.branch ? `From our ${quote.branch.name} shop${quote.distanceKm ? ` · ${quote.distanceKm} km` : ''}` : ''; }
+    if (!picked && !picking) $('#mapWrap').hidden = true;
   }
-  $('#addrChange').addEventListener('click', () => { address = null; renderAddress(); scheduleQuote(0); setTimeout(() => $('#acHost').querySelector('input,gmp-place-autocomplete')?.focus(), 50); });
+  $('#addrChange').addEventListener('click', () => { address = null; picking = false; renderAddress(); scheduleQuote(0); setTimeout(() => $('#acHost').querySelector('input,gmp-place-autocomplete')?.focus(), 50); });
+
+  async function showMap(center, zoom) {
+    if (!mapsReady) return;
+    const wrap = $('#mapWrap'); wrap.hidden = false;
+    $('#mapHint').textContent = address?.text ? 'Not exact? Drag the map so the pin sits on your door.' : 'Drag the map to put the pin on your delivery spot.';
+    try {
+      if (!map) {
+        const { Map } = await google.maps.importLibrary('maps');
+        map = new Map($('#map'), { center, zoom, disableDefaultUI: true, zoomControl: true, gestureHandling: 'greedy', clickableIcons: false });
+        map.addListener('dragstart', () => { moved = true; wrap.classList.add('moving'); });
+        map.addListener('click', (e) => { if (e.latLng) { moved = true; map.panTo(e.latLng); } });
+        map.addListener('idle', onMapIdle);
+      } else { map.setCenter(center); if (zoom) map.setZoom(zoom); }
+    } catch (e) { console.warn('Map failed', e); wrap.hidden = true; }
+  }
+  async function reverseGeocode(lat, lng) {
+    try {
+      const { Geocoder } = await google.maps.importLibrary('geocoding');
+      const r = await new Geocoder().geocode({ location: { lat, lng } });
+      return r.results?.[0]?.formatted_address || '';
+    } catch { return ''; }
+  }
+  async function onMapIdle() {
+    $('#mapWrap').classList.remove('moving');
+    const c = map.getCenter(); const pos = { lat: c.lat(), lng: c.lng() };
+    const hasPin = address && isFinite(address.lat);
+    // a drag/tap, or a pinch-zoom that shifted the centre away from the current pin
+    if (!(moved || (hasPin && address.text && distM(address, pos) > 5))) return;
+    moved = false;
+    const seq = ++pinSeq;
+    let text = address?.text || '';
+    if (!text || !hasPin || distM(address, pos) > 40) text = (await reverseGeocode(pos.lat, pos.lng)) || text || `Pinned location ${pos.lat.toFixed(5)}, ${pos.lng.toFixed(5)}`;
+    if (seq !== pinSeq) return; // moved again meanwhile
+    const wasPicking = picking; picking = false;
+    $('#addrErr').textContent = '';
+    setAddress({ text, lat: pos.lat, lng: pos.lng, pinned: true }, { fromMap: true });
+    if (wasPicking && map.getZoom() < 16) map.setZoom(17);
+    $('#mapHint').textContent = 'Pin set. Drag again to fine-tune.';
+  }
+  $('#pickMap').addEventListener('click', () => {
+    picking = true;
+    showMap(address && isFinite(address.lat) ? { lat: address.lat, lng: address.lng } : KL, address ? 17 : 12);
+    setTimeout(() => $('#mapWrap').scrollIntoView({ behavior: 'smooth', block: 'center' }), 60);
+  });
 
   let searchReady = false;
   function loadMaps(key) {
@@ -164,6 +219,9 @@
         host.appendChild(el);
         el.addEventListener('gmp-select', async (ev) => { try { await placeToAddress(ev.placePrediction.toPlace()); } catch (e) { $('#addrErr').textContent = 'Could not use that address, please try another.'; } });
         el.addEventListener('gmp-placeselect', async (ev) => { try { await placeToAddress(ev.place); } catch {} });
+        mapsReady = true;
+        $('#pickMap').hidden = false;
+        if (address && isFinite(address.lat) && address.text) showMap({ lat: address.lat, lng: address.lng }, 17);
         return;
       } catch (e) { console.warn('Maps failed', e); }
     }

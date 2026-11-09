@@ -111,6 +111,14 @@ gmp-place-autocomplete { width: 100%; color-scheme: light; }
 .addr-picked b { display: block; margin-bottom: 2px; }
 .addr-picked button { margin-top: 6px; border: 0; background: none; color: var(--red); font-weight: 600; padding: 0; }
 .linkbtn { border: 0; background: none; color: var(--wood); font-weight: 600; padding: 6px 0; text-decoration: underline; }
+.addr-actions { display: flex; gap: 18px; flex-wrap: wrap; }
+.mapwrap { position: relative; height: 240px; margin: 12px 0 4px; border-radius: 12px; overflow: hidden; border: 1.5px solid #e1d4bd; background: #eae3d6; }
+.mapwrap[hidden] { display: none; }
+.mapwrap #map { position: absolute; inset: 0; }
+.mapwrap .pin { position: absolute; left: 50%; top: 50%; width: 34px; height: 44px; transform: translate(-50%, -100%); pointer-events: none; z-index: 2; filter: drop-shadow(0 3px 4px rgba(0,0,0,.35)); transition: transform .15s ease; }
+.mapwrap.moving .pin { transform: translate(-50%, -118%); }
+.mapwrap .pin-dot { position: absolute; left: 50%; top: 50%; width: 10px; height: 5px; border-radius: 50%; background: rgba(0,0,0,.35); transform: translate(-50%, -50%); pointer-events: none; z-index: 1; }
+.maphint { position: absolute; left: 8px; right: 8px; top: 8px; z-index: 2; padding: 6px 10px; border-radius: 8px; background: rgba(255,250,240,.95); color: var(--ink); font-size: 12.5px; text-align: center; pointer-events: none; box-shadow: 0 1px 4px rgba(0,0,0,.15); }
 .coupon { display: flex; gap: 8px; }
 .coupon .inp { text-transform: uppercase; }
 .btn2 { border: 1.5px solid var(--ink); background: transparent; color: var(--ink); border-radius: 10px; padding: 0 16px; font-weight: 700; white-space: nowrap; }

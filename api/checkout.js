@@ -84,6 +84,7 @@ module.exports = handler(async (req, res) => {
   }
   await store.saveOrder(order);
   await db.zadd('orders', order.createdAt, order.id);
+  await db.set(`orderno:${order.no}`, order.id);
   if (member) await db.zadd(`memberorders:${member.id}`, order.createdAt, order.id);
   send(res, 200, { paymentUrl: order.payment.billUrl, orderId: order.id, token: order.token });
 });

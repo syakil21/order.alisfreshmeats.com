@@ -65,6 +65,13 @@ const actions = {
     const orders = await store.listOrders(Math.min(500, b.limit || 200));
     return { orders: orders.map(summary), now: Date.now() };
   },
+  async 'order.byNo'(b) {
+    const no = String(b.no || '').toUpperCase().trim();
+    let id = await db.get(`orderno:${no}`);
+    if (!id) id = (await store.listOrders(500)).find((o) => o.no === no)?.id;
+    if (!id) throw httpError(404, `Order ${no} not found`);
+    return { id };
+  },
   async 'order.get'(b) {
     const o = await store.getOrder(b.id); if (!o) throw httpError(404, 'Order not found');
     return { order: detail(o) };
@@ -234,7 +241,7 @@ const actions = {
         weights: list(s.cutting?.weights, 20).map((x) => Math.round(parseFloat(x))).filter((g) => g >= 5 && g <= 2000),
         cooking: list(s.cutting?.cooking).map((x) => x.slice(0, 30)),
       },
-      label: { widthMm: Math.min(150, Math.max(15, num(s.label?.widthMm, 50))), heightMm: Math.min(150, Math.max(15, num(s.label?.heightMm, 30))), perItem: !!s.label?.perItem, rotate90: !!s.label?.rotate90, flip: !!s.label?.flip },
+      label: { widthMm: Math.min(150, Math.max(15, num(s.label?.widthMm, 50))), heightMm: Math.min(150, Math.max(15, num(s.label?.heightMm, 30))), perItem: !!s.label?.perItem, rotate90: !!s.label?.rotate90, flip: !!s.label?.flip, qr: !!s.label?.qr, sizeSet: true },
       branches: (Array.isArray(s.branches) ? s.branches : cur.branches).map((br) => ({
         id: br.id ? slug(br.id) : slug(br.name), name: str(br.name, 60), address: str(br.address, 300),
         lat: isFinite(parseFloat(br.lat)) ? String(parseFloat(br.lat)) : '', lng: isFinite(parseFloat(br.lng)) ? String(parseFloat(br.lng)) : '',

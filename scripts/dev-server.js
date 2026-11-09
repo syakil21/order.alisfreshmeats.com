@@ -146,6 +146,7 @@ const server = http.createServer(async (req, res) => {
     if ((m = u.pathname.match(/^\/__mock\/billplz\/(\w+)(?:\/(pay|fail))?$/))) return await mockBillplzPage(req, res, m[1], m[2]);
     if ((m = u.pathname.match(/^\/__mock\/lalamove\/advance\/(\d+)$/))) return await mockAdvance(req, res, m[1]);
     if (u.pathname === '/__mock/calls') { res.setHeader('Content-Type', 'application/json'); return res.end(JSON.stringify({ calls: mock.calls, llm: [...mock.llm.values()].map((o) => ({ orderId: o.orderId, status: o.status, remarks: o.remarks, metadata: o.metadata })) })); }
+    if ((m = u.pathname.match(/^\/s\/([\w-]+)$/i))) { req.url = `/api/s?no=${m[1]}`; return await require(path.join(__dirname, '..', 'api', 's.js'))(req, res); }
     if ((m = u.pathname.match(/^\/api\/([\w-]+)$/))) {
       const file = path.join(__dirname, '..', 'api', `${m[1]}.js`);
       if (!fs.existsSync(file)) { res.statusCode = 404; return res.end('not found'); }

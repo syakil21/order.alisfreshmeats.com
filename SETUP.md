@@ -150,7 +150,7 @@ These show in the dashboard and on the label. Edit the lists under **Settings �
 
 After entering your real shop coordinates, check the radius values and adjust if needed. Customers outside the area see the delivery area message and can't pay.
 
-**Labels:** set the sticker size as you read it (e.g. 50 × 30), then use **Print test label**.
+**Labels:** the shop's stickers are 80 × 50 mm. In Windows → Printing preferences, the paper size must be **50 wide × 80 high** (as it comes out of the printer). In Settings → Labels, the sticker size is **80 × 50** (as you read it). Then use **Print test label**. The QR code on each label opens that order in the staff dashboard (log in once on the staff phone). You can turn it off in Settings → Labels.
 - **Turn print 90°** is on by default. It fixes labels coming out sideways (portrait).
 - If the label is still sideways, untick it. If it's upside down, tick **Turn print 180°**.
 - **Preview label** shows the layout.

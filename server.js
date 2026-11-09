@@ -14,6 +14,8 @@ const server = http.createServer(async (req, res) => {
   const u = new URL(req.url, 'http://localhost');
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  const qr = u.pathname.match(/^\/s\/([\w-]+)\/?$/i); // label QR codes: /S/AFM-1006
+  if (qr) { req.url = `/api/s?no=${encodeURIComponent(qr[1])}`; return handlers.s(req, res); }
   const m = u.pathname.match(/^\/api\/([\w-]+)\/?$/);
   if (m) {
     const h = handlers[m[1]];

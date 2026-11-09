@@ -98,7 +98,7 @@
 
   // ---------- order drawer ----------
   let openId = null;
-  function closeDrawer() { $('#drawer').classList.remove('show'); openId = null; if (location.hash.startsWith('#order=')) history.replaceState(null, '', location.pathname); }
+  function closeDrawer() { $('#drawer').classList.remove('show'); openId = null; if (/^#(order|no)=/.test(location.hash)) history.replaceState(null, '', location.pathname); }
   $('#drawer').addEventListener('click', (e) => { if (e.target.closest('[data-close]')) closeDrawer(); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDrawer(); });
 
@@ -366,8 +366,18 @@
     updateSoundBtn();
     await loadOrders();
     clearInterval(pollTimer); pollTimer = setInterval(loadOrders, 15000);
-    const m = location.hash.match(/^#order=(.+)$/); if (m) openOrder(decodeURIComponent(m[1]));
+    openFromHash();
   }
-  window.addEventListener('hashchange', () => { const m = location.hash.match(/^#order=(.+)$/); if (m) openOrder(decodeURIComponent(m[1])); });
+  // #order=<id> or #no=AFM-1006 (label QR code)
+  async function openFromHash() {
+    const m = location.hash.match(/^#order=(.+)$/); if (m) return openOrder(decodeURIComponent(m[1]));
+    const n = location.hash.match(/^#no=([\w-]+)$/);
+    if (n) {
+      const no = n[1].toUpperCase();
+      const hit = orders.find((o) => o.no === no);
+      try { openOrder(hit ? hit.id : (await api('order.byNo', { no })).id); } catch (e) { toast(e.message); }
+    }
+  }
+  window.addEventListener('hashchange', openFromHash);
   if (token) start(); else showLogin();
 })();

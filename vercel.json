@@ -1,5 +1,9 @@
 {
   "functions": { "api/*.js": { "maxDuration": 30 } },
+  "rewrites": [
+    { "source": "/s/:no", "destination": "/api/s?no=:no" },
+    { "source": "/S/:no", "destination": "/api/s?no=:no" }
+  ],
   "headers": [
     { "source": "/api/(.*)", "headers": [{ "key": "Cache-Control", "value": "no-store" }] },
     { "source": "/(.*)", "headers": [

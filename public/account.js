@@ -178,7 +178,7 @@
   // ---------- start ----------
   (async () => {
     try { catalog = await (await fetch('/api/catalog')).json(); } catch { catalog = {}; }
-    $('#forgot').href = `https://wa.me/${catalog.shop?.whatsapp || '60162053786'}?text=${encodeURIComponent('Hi, I forgot my password for my Ali\'s Fresh Meats account. My phone number is ')}`;
+    $('#forgot').href = `https://wa.me/${catalog.shop?.whatsapp || '601113370205'}?text=${encodeURIComponent('Hi, I forgot my password for my Ali\'s Fresh Meats account. My phone number is ')}`;
     if (!token) return showAuth();
     try { data = await api('me'); if (next && params.get('signup')) location.href = next; else showDash(); }
     catch { showAuth(); }

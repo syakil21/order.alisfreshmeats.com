@@ -849,7 +849,7 @@
   }
   function renderSettings() {
     const f = $('#settingsForm');
-    for (const el of f.querySelectorAll('[name]')) { const v = getPath(settings, el.name); if (el.type === 'checkbox') el.checked = !!v; else el.value = Array.isArray(v) ? v.join(', ') : v ?? ''; }
+    for (const el of f.querySelectorAll('[name]')) { const v = getPath(settings, el.name); if (el.type === 'checkbox') el.checked = !!v; else el.value = el.name === 'whatsapp' ? prettyPhone(`+${v}`) : Array.isArray(v) ? v.join(', ') : v ?? ''; }
     $('#closedDays').innerHTML = DAYS.map((d, i) => `<button type="button" class="chip ${settings.hours.closedDays.includes(i) ? 'on' : ''}" data-day="${i}">${d}</button>`).join('');
     renderBranches();
   }

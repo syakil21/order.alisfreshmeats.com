@@ -565,6 +565,7 @@ const actions = {
       ...cur,
       shopName: str(s.shopName, 60) || cur.shopName,
       whatsapp: String(normalizePhone(s.whatsapp) || cur.whatsapp).replace('+', ''),
+      whatsappSet: true,
       acceptingOrders: s.acceptingOrders !== false,
       hours: { open: hhmm(s.hours?.open, cur.hours.open), close: hhmm(s.hours?.close, cur.hours.close), closedDays: (s.hours?.closedDays || []).map(Number).filter((d) => d >= 0 && d <= 6) },
       prepMinutes: Math.max(0, Math.min(600, Math.round(num(s.prepMinutes, cur.prepMinutes)))),

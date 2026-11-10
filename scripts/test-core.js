@@ -141,6 +141,8 @@ r = priceCart({ items: [{ productId: 'brain', qty: 1 }], products: withStock('br
 assert.strictEqual(r.errors[0], 'Brain is sold out.');
 r = priceCart({ items: [{ productId: 'brain', qty: 4 }], products: withStock('brain', 4), coupons: {}, customers: {}, settings: S });
 assert.deepStrictEqual(r.errors, [], 'exactly the stock is fine');
+r = priceCart({ items: [{ productId: 'head', qty: 1 }, { productId: 'mutton-chops', qty: 1 }, { productId: 'lamb-shank', qty: 1 }], products: SEED_PRODUCTS, coupons: {}, customers: {}, settings: S });
+assert.deepStrictEqual(r.lines.map((l) => l.category), ['Local Fresh Meat', 'Imported Mutton', 'Lamb Selection'], 'meat type saved on each line');
 console.log('✓ Marrow 2/3 pcs, slices by count or thickness, stock limits');
 
 // ---- loyalty points ----

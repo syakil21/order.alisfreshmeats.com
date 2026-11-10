@@ -7,7 +7,7 @@ const lalamove = require('../lib/lalamove');
 const printnode = require('../lib/printnode');
 const { buildLabel } = require('../lib/label');
 const { body, send, ip, siteUrl, rid, safeEqual, handler, httpError } = require('../lib/http');
-const { fulfil, printLabel, bookDelivery, refreshDelivery, labelOptions, addTip, reverseOrder } = require('../lib/fulfil');
+const { fulfil, printLabel, bookDelivery, refreshDelivery, labelOptions, withCategories, addTip, reverseOrder } = require('../lib/fulfil');
 const staff = require('../lib/staff');
 const { stage } = require('../lib/stage');
 const members = require('../lib/members');
@@ -46,7 +46,7 @@ function summary(o) {
     stage: s.key, stageText: s.text, board: s.board, problem: s.problem || printProblem,
     printStatus: o.print?.status || '', deliveryStatus: d.status || '',
     pickupAt: o.fulfilment === 'pickup' ? o.pickup?.at || null : d.scheduleAt || null,
-    driver: d.driver?.name || '', priorityFeeRM: d.priorityFeeRM || 0, bookedAt: d.bookedAt || 0, matchedAt: d.driver?.matchedAt || 0,
+    driver: d.driver?.name || '', driverPlate: d.driver?.plate || '', driverPhone: d.driver?.phone || '', priorityFeeRM: d.priorityFeeRM || 0, bookedAt: d.bookedAt || 0, matchedAt: d.driver?.matchedAt || 0,
     readyAt: o.prep?.readyAt || 0, cancelledAt: o.cancelledAt || 0, attempts: d.attempts || 0,
   };
 }
@@ -57,10 +57,10 @@ const SAMPLE_ORDER = {
   address: { text: 'Test address', notes: 'Test print from dashboard' }, delivery: { scheduleAt: new Date().toISOString() },
   fulfilment: 'delivery', deliveryOption: 'priority',
   items: [
-    { name: 'Boneless Meat', qty: 1.5, unit: 'kg', cutText: '2 inch pieces · Curry cut' },
-    { name: 'Lamb Chop Shoulder Slices', qty: 1, unit: 'kg', cutText: '1 inch thick · "Remove fat please"' },
-    { name: 'Mutton Leg Bones (Marrow)', qty: 1, unit: 'kg', cutText: 'Cut each into 3 pcs' },
-    { name: 'Head', qty: 1, unit: 'set' },
+    { productId: 'boneless-meat', name: 'Boneless Meat', qty: 1.5, unit: 'kg', cutText: '2 inch pieces · Curry cut' },
+    { productId: 'lamb-chop-shoulder-slices', name: 'Lamb Chop Shoulder Slices', qty: 1, unit: 'kg', cutText: '1 inch thick · "Remove fat please"' },
+    { productId: 'mutton-leg-bones-marrow', name: 'Mutton Leg Bones (Marrow)', qty: 1, unit: 'kg', cutText: 'Cut each into 3 pcs' },
+    { productId: 'head', name: 'Head', qty: 1, unit: 'set' },
   ],
 };
 // Cancel the order's Lalamove booking if it's still live. A booking Lalamove doesn't have (test keys, removed)
@@ -99,7 +99,11 @@ const actions = {
     activity.log('staff', `${who.name} logged in (${who.role === 'super' ? 'super admin' : 'staff'}, ${ip(req)})`, { by: who.name });
     return { token, me: who };
   },
-  async me(b, req, me) { return { me }; },
+  async me(b, req, me) {
+    const settings = await store.getSettings();
+    const names = (me.branches || []).map((id) => settings.branches.find((x) => x.id === id)?.name || id);
+    return { me: { ...me, branchNames: names } };
+  },
   async logout(b, req, me) {
     const t = String(req.headers.authorization || '').replace(/^Bearer /, '');
     if (t) await db.del(`sess:${t}`);
@@ -108,7 +112,7 @@ const actions = {
 
   // ---- orders ----
   async 'orders.list'(b, req, me) {
-    const orders = await store.listOrders(Math.min(500, b.limit || 200));
+    const orders = (await store.listOrders(Math.min(500, b.limit || 200))).filter((o) => staff.sees(me, o));
     return { orders: orders.map(summary), now: Date.now() };
   },
   async 'order.byNo'(b, req, me) {
@@ -116,11 +120,13 @@ const actions = {
     let id = await db.get(`orderno:${no}`);
     if (!id) id = (await store.listOrders(500)).find((o) => o.no === no)?.id;
     if (!id) throw httpError(404, `Order ${no} not found`);
+    const o = await store.getOrder(id);
+    if (o && !staff.sees(me, o)) throw httpError(403, `${no} is a ${o.branchName} order.`);
     return { id };
   },
   async 'order.get'(b, req, me) {
     const o = await store.getOrder(b.id); if (!o) throw httpError(404, 'Order not found');
-    return { order: detail(o) };
+    return { order: detail(withCategories(o, await store.getProducts())) };
   },
   async 'order.reprint'(b, req, me) {
     let o = await store.getOrder(b.id); if (!o) throw httpError(404, 'Order not found');
@@ -171,7 +177,10 @@ const actions = {
     const stale = orders.filter((o) => ['ASSIGNING_DRIVER', 'ON_GOING', 'PICKED_UP'].includes(o.delivery?.status) && Date.now() - (o.delivery.checkedAt || o.delivery.bookedAt || 0) > 5 * 60000).slice(0, 3);
     for (const o of stale) { try { orders[orders.indexOf(o)] = await refreshDelivery(o); } catch (e) { console.warn('board refresh failed', o.no, e.message); } }
     const now = Date.now(); const st = shopOpen(settings, now); const todayDate = mytParts(now).date;
-    const board = orders.filter((o) => {
+    const mine = orders.filter((o) => staff.sees(me, o));
+    const todays = mine.filter((o) => mytParts(o.createdAt).date === todayDate);
+    const paidToday = todays.filter((o) => o.payment.status === 'paid' && !o.cancelledAt);
+    const board = mine.filter((o) => {
       const b = stage(o).board;
       if (b === 'done') return mytParts(o.updatedAt || o.createdAt).date === todayDate;
       if (b === 'unpaid') return now - o.createdAt < 3 * 3600000;
@@ -181,7 +190,7 @@ const actions = {
       store: { open: st.open, message: st.message, acceptingOrders: settings.acceptingOrders, pausedUntil: settings.pausedUntil > now ? settings.pausedUntil : 0, hours: settings.hours },
       today: me?.role === 'super'
         ? { salesSen: today.salesSen, orders: today.orders, aovSen: today.aovSen, delivery: today.delivery, pickup: today.pickup, prev: today.prev, unpaid: today.unpaid }
-        : { orders: today.orders, delivery: today.delivery, pickup: today.pickup, unpaid: today.unpaid },
+        : { orders: paidToday.length, delivery: paidToday.filter((o) => o.fulfilment !== 'pickup').length, pickup: paidToday.filter((o) => o.fulfilment === 'pickup').length, unpaid: todays.filter((o) => o.payment.status !== 'paid').length },
       orders: board, now,
     };
   },
@@ -366,11 +375,17 @@ const actions = {
   },
 
   // ---- staff accounts (super admin) ----
-  async 'staff.list'(b, req, me) { return { staff: await staff.list(), owner: !!process.env.ADMIN_PASSCODE }; },
+  async 'staff.list'(b, req, me) {
+    const settings = await store.getSettings();
+    return { staff: await staff.list(), owner: !!process.env.ADMIN_PASSCODE, branches: settings.branches.map((x) => ({ id: x.id, name: x.name })) };
+  },
   async 'staff.save'(b, req, me) {
     const u = b.user || {};
-    const saved = await staff.save({ id: u.id, name: u.name, password: u.password, role: u.role, active: u.active });
-    staffLog(me, `Staff account ${u.id ? 'updated' : 'added'}: ${saved.name} (${saved.role === 'super' ? 'super admin' : 'staff'}${saved.active ? '' : ', turned off'}${u.password && u.id ? ', new password' : ''})`);
+    const settings = await store.getSettings();
+    const valid = settings.branches.map((x) => x.id);
+    const saved = await staff.save({ id: u.id, name: u.name, password: u.password, role: u.role, active: u.active, branches: (u.branches || []).filter((x) => valid.includes(x)) });
+    const where = saved.branches.length ? saved.branches.map((id) => settings.branches.find((x) => x.id === id)?.name).join(', ') : 'all branches';
+    staffLog(me, `Staff account ${u.id ? 'updated' : 'added'}: ${saved.name} (${saved.role === 'super' ? 'super admin' : `staff, ${where}`}${saved.active ? '' : ', turned off'}${u.password && u.id ? ', new password' : ''})`);
     return { staff: await staff.list() };
   },
   async 'staff.delete'(b, req, me) {
@@ -598,7 +613,7 @@ const actions = {
   },
   async 'staffPush.save'(b, req, me) {
     if (b.on === false) { if (b.subscription?.endpoint) await push.save(b.subscription, { staff: false }); return { on: false }; }
-    await push.save(b.subscription, { staff: true });
+    await push.save(b.subscription, { staff: true, branches: me.branches || [] });
     staffLog(me, 'New-order alerts turned on for a staff device');
     await push.notifyStaff({ title: 'New-order alerts are on ✅', body: "This device will be notified when a paid order comes in.", url: '/admin.html', tag: 'staff-test' });
     return { on: true };
@@ -610,7 +625,8 @@ const actions = {
     const settings = await store.getSettings();
     const br = settings.branches.find((x) => x.id === b.branchId);
     if (!br?.printerId) throw httpError(400, 'Choose a printer for this branch and save first.');
-    const pdf = await buildLabel({ ...SAMPLE_ORDER, branchName: br.name }, labelOptions(settings, SAMPLE_ORDER, siteUrl(req)));
+    const products = await store.getProducts();
+    const pdf = await buildLabel(withCategories({ ...SAMPLE_ORDER, branchName: br.name }, products), labelOptions(settings, SAMPLE_ORDER, siteUrl(req), products));
     const jobId = await printnode.printPdf({ printerId: br.printerId, title: 'Test label', pdf });
     return { jobId };
   },
@@ -649,6 +665,10 @@ module.exports = handler(async (req, res) => {
   if (!fn) return send(res, 400, { error: 'Unknown action' });
   const me = b.action === 'login' ? null : await requireSession(req);
   if (me && me.role !== 'super' && !STAFF_OK.has(b.action)) throw httpError(403, 'Only a super admin can do this.');
+  if (me && b.id && /^order\./.test(b.action) && b.action !== 'order.byNo') {
+    const o = await store.getOrder(b.id);
+    if (o && !staff.sees(me, o)) throw httpError(403, `This is a ${o.branchName} order.`);
+  }
   try { send(res, 200, await fn(b, req, me)); }
   catch (e) {
     if (e.status) throw e;

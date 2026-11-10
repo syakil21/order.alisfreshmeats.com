@@ -102,7 +102,8 @@ The dashboard (`/admin.html`) works like a food-delivery merchant app. Log in wi
 - Click **Order sound** once so new paid orders chime. **New-order alerts on this phone** sends a phone notification for every paid order, even when the dashboard is closed.
 - Scanning the **QR code on a label** opens that order.
 - **Menu**: switch an item off when it's sold out (saves at once). Tap the **stock tag** to enter how many you have. Super admins tap an item to change its price, photo or cutting choices.
-- **Staff** (super admin): give each person their own login. **Staff** can see orders, print, tip / change driver / cancel / rebook Lalamove, call or WhatsApp customers, and update sold-out and stock. **Super admin** can also edit and delete orders, change prices and settings, and see Insights, Customers, Promotions and Activity. Every change is logged with the person's name.
+- **Staff** (super admin): give each person their own login, and choose their **branch** (Selayang only, Brickfields only, or all). Branch staff only see, print and handle that branch's orders, and their phone alerts are only for that branch.
+- **Staff** accounts: **Staff** can see orders, print, tip / change driver / cancel / rebook Lalamove, call or WhatsApp customers, and update sold-out and stock. **Super admin** can also edit and delete orders, change prices and settings, and see Insights, Customers, Promotions and Activity. Every change is logged with the person's name.
 - **Edit / delete an order** (super admin): open the order → **Edit order** (customer, address, pickup time, quantities, cutting) or **Delete order…** (for test orders). A deleted order leaves orders and sales, puts stock and points back, and stays under the **Deleted** tab and in Activity.
 - **Insights**: sales, orders, average order, customers, sales by hour or day, best sellers, branches, delivery vs pickup, Lalamove cost vs what customers paid, discounts and points. Choose Today, Last 7 days, This month, Last month, Last 30 days or Custom.
 - **Customers**: members with their points (± Points to give or remove), special % discounts by phone, password reset.
@@ -194,3 +195,16 @@ After entering your real shop coordinates, check the radius values and adjust if
 - Customers tap **Get deal alerts** on the shop, or **Notify me** on their order page, or use the switches on their account page.
 - On iPhone, notifications only work after the app is added to the Home Screen.
 - Order updates: confirmed, driver on the way, out for delivery, delivered, ready for pickup.
+
+---
+
+## Stickers and Lalamove drivers
+
+**Meat type on the sticker:** each line ends with a black tag, **LOCAL**, **IMPORTED** or **LAMB** (the first word of the menu category), and items are grouped by type. The per-item labels show the full category on top.
+
+**How the driver knows which order to collect:**
+- In the Lalamove app, the pickup stop is named "Ali's Fresh Meats Selayang - AFM-1012".
+- The note to the driver starts with **ORDER NO: AFM-1012 (tell the shop this number)**, followed by unit, delivery note and the map pin.
+- The driver gives that number at the counter, and staff match it to the sticker.
+
+**How staff know which driver is for which order:** on the dashboard, once a driver accepts, the order card shows **🛵 driver name · plate number** with a **📞 Driver** button. The order page has the driver's phone and the Lalamove tracking link.

@@ -53,7 +53,7 @@
     $('#nav').innerHTML = TABS.map(([k, l]) => `<button type="button" data-tab="${k}">${icon(k)}<span>${l}</span>${k === 'home' ? '<span class="dot hidden" id="navDot"></span>' : ''}</button>`).join('');
     $('#bnav').style.gridTemplateColumns = `repeat(${BOTTOM.length}, 1fr)`;
     $('#bnav').innerHTML = BOTTOM.map((k) => `<button type="button" data-tab="${k}">${icon(k)}<span>${k === 'more' ? 'More' : TABS.find((t) => t[0] === k)[1]}</span>${k === 'home' ? '<span class="dot hidden" id="bnavDot"></span>' : ''}</button>`).join('');
-    $('#whoami').textContent = me ? `${me.name} · ${isSuper() ? 'Super admin' : 'Staff'}` : '';
+    $('#whoami').textContent = me ? `${me.name} · ${isSuper() ? 'Super admin' : `Staff${me.branchNames?.length ? ` · ${me.branchNames.join(', ')}` : ''}`}` : '';
     $('#addProduct').classList.toggle('hidden', !isSuper()); $('#saveProducts').classList.toggle('hidden', !isSuper());
   }
   const loaded = {};
@@ -73,7 +73,7 @@
   function openMore() {
     openDrawerHTML(`<div class="row"><h2 class="grow" style="margin:0;font:600 20px Oswald,sans-serif;text-transform:uppercase">More</h2><button class="btn sm" data-close>Close</button></div>
       ${TABS.some(([k]) => !BOTTOM.includes(k)) ? `<div class="card" style="margin-top:12px;padding:6px">${TABS.filter(([k]) => !BOTTOM.includes(k)).map(([k, l]) => `<button type="button" class="btn" data-tab="${k}" style="display:flex;gap:12px;width:100%;border:0;text-align:left;align-items:center">${icon(k)}${l}</button>`).join('')}</div>` : ''}
-      <p class="muted" style="margin:14px 2px">Logged in as <b>${esc(me?.name || '')}</b> (${isSuper() ? 'super admin' : 'staff'})</p>
+      <p class="muted" style="margin:14px 2px">Logged in as <b>${esc(me?.name || '')}</b> (${isSuper() ? 'super admin' : `staff${me?.branchNames?.length ? `, ${esc(me.branchNames.join(', '))}` : ''}`})</p>
       <button class="btn" type="button" id="logout2" style="width:100%">Log out</button>`);
     $('#logout2').onclick = logout;
   }
@@ -119,7 +119,7 @@
     const s = home.store; const card = $('#storeCard');
     const paused = s.pausedUntil > Date.now();
     const on = s.acceptingOrders && !paused;
-    $('#storeSwitch').checked = on;
+    $('#storeSwitch').checked = on; $('#storeSwitch').disabled = !isSuper();
     card.className = 'store ' + (!s.acceptingOrders ? 'off' : paused ? 'paused' : s.open ? 'open' : 'off');
     let title, sub;
     if (!s.acceptingOrders) { title = 'Online ordering is OFF'; sub = 'Customers can browse but cannot order. Turn the switch on to take orders.'; }
@@ -127,7 +127,8 @@
     else if (s.open) { title = 'Open for online orders today'; sub = s.message; }
     else { title = 'Closed now'; sub = s.message; }
     $('#storeTitle').textContent = title; $('#storeSub').textContent = sub;
-    $('#pauseBtns').innerHTML = paused ? '<button class="btn go" type="button" data-resume>Resume now</button>'
+    $('#pauseBtns').innerHTML = !isSuper() ? (me?.branchNames?.length ? `<span class="tag t-pay">${esc(me.branchNames.join(', '))} orders</span>` : '')
+      : paused ? '<button class="btn go" type="button" data-resume>Resume now</button>'
       : s.acceptingOrders ? '<span class="muted" style="align-self:center">Busy? Pause:</span><button class="btn sm" type="button" data-pause="30">30 min</button><button class="btn sm" type="button" data-pause="60">1 hour</button><button class="btn sm" type="button" data-pause="today">Rest of today</button>' : '';
     const ts = $('#topStatus'); ts.textContent = !s.acceptingOrders ? 'Off' : paused ? 'Paused' : s.open ? 'Open' : 'Closed'; ts.className = 'tag ' + (on && s.open ? 't-done' : paused ? 't-prep' : 't-bad');
   }
@@ -193,8 +194,8 @@
     if (o.fulfilment === 'pickup') return o.stage === 'collected' ? 'Collected' : o.readyAt ? `Ready since ${fmtTime(o.readyAt)}` : `Prepare for ${o.pickupAt ? whenText(Date.parse(o.pickupAt)) : 'pickup'}`;
     const ds = o.deliveryStatus;
     if (ds === 'ASSIGNING_DRIVER') return `Finding driver · ${mins(o.bookedAt)} min${o.priorityFeeRM ? ` · tip RM${o.priorityFeeRM}` : ''}${o.readyAt ? ' · packed' : ''}`;
-    if (ds === 'ON_GOING') return `Driver ${esc(o.driver || '')} coming to shop${o.readyAt ? ' · packed' : ''}`;
-    if (ds === 'PICKED_UP') return `On the way with ${esc(o.driver || 'driver')}`;
+    if (ds === 'ON_GOING') return `🛵 <b>${esc(o.driver || 'Driver')}</b>${o.driverPlate ? ` · <b>${esc(o.driverPlate)}</b>` : ''} coming to collect${o.readyAt ? ' · packed' : ''}`;
+    if (ds === 'PICKED_UP') return `On the way with ${esc(o.driver || 'driver')}${o.driverPlate ? ` (${esc(o.driverPlate)})` : ''}`;
     if (ds === 'COMPLETED') return 'Delivered';
     if (FAIL.includes(ds)) return ds === 'NOT_FOUND' ? 'Lalamove booking not found' : `Lalamove ${ds.toLowerCase().replace('_', ' ')}`;
     return o.stageText;
@@ -212,6 +213,7 @@
       const ds = o.deliveryStatus;
       if (!o.readyAt && ['ASSIGNING_DRIVER', 'ON_GOING'].includes(ds)) a.push(b('order.ready', '✓ Packed', 'go'));
       if (ds === 'ASSIGNING_DRIVER' && mins(o.bookedAt) >= 8) a.push(b('tip', '+ Add tip', 'pri'));
+      if (o.driverPhone && ['ON_GOING', 'PICKED_UP'].includes(ds)) a.push(`<a class="btn sm" href="tel:${esc(o.driverPhone)}" data-stop>📞 Driver</a>`);
       if (ds === 'ON_GOING' && o.matchedAt && mins(o.matchedAt) >= 15) a.push(b('open', 'Change driver'));
       if (FAIL.includes(ds) || !ds) a.push(b('open', 'Rebook…', 'pri'));
     }
@@ -249,6 +251,7 @@
   });
   $('#search').addEventListener('input', () => renderBoard());
   $('#board').addEventListener('click', (e) => {
+    if (e.target.closest('[data-stop]')) return; // links on the card (call driver)
     const btn = e.target.closest('[data-cact]');
     if (btn) {
       e.stopPropagation();
@@ -317,7 +320,7 @@
         <dt>Placed</dt><dd>${fmtDT(o.createdAt)}</dd>
       </dl></div>
       <div class="card"><table class="list">
-        ${o.items.map((i) => `<tr><td>${esc(i.name)}${i.cutText ? `<div class="cutline">✂ ${esc(i.cutText)}</div>` : ''}</td><td><b>${qtyText(i.qty, i.unit)}</b></td><td class="num">${rm(i.lineSen)}</td></tr>`).join('')}
+        ${o.items.map((i) => `<tr><td>${esc(i.name)}${i.category ? ` <span class="tag t-pay">${esc(i.category)}</span>` : ''}${i.cutText ? `<div class="cutline">✂ ${esc(i.cutText)}</div>` : ''}</td><td><b>${qtyText(i.qty, i.unit)}</b></td><td class="num">${rm(i.lineSen)}</td></tr>`).join('')}
         <tr><td colspan="2">Subtotal</td><td class="num">${rm(o.subtotalSen)}</td></tr>
         ${(o.discounts || []).map((x) => `<tr><td colspan="2">${esc(x.label)}</td><td class="num">− ${rm(x.sen)}</td></tr>`).join('')}
         ${o.pointsSen ? `<tr><td colspan="2">Points used (${o.pointsUsed})</td><td class="num">− ${rm(o.pointsSen)}</td></tr>` : ''}
@@ -745,11 +748,16 @@
   }
 
   // ---------- staff accounts (super admin) ----------
-  let staffList = []; let editingStaff = '';
-  async function loadStaff() { staffList = (await api('staff.list')).staff; renderStaff(); }
+  let staffList = []; let editingStaff = ''; let branchOpts = [];
+  async function loadStaff() {
+    const d = await api('staff.list'); staffList = d.staff; branchOpts = d.branches;
+    $('#staffForm [name="branch"]').innerHTML = '<option value="">All branches</option>' + branchOpts.map((b) => `<option value="${esc(b.id)}">${esc(b.name)} only</option>`).join('');
+    renderStaff();
+  }
+  const branchText = (u) => (u.role === 'super' || !(u.branches || []).length ? 'All' : u.branches.map((id) => branchOpts.find((b) => b.id === id)?.name || id).join(', '));
   function renderStaff() {
-    $('#staffRows').innerHTML = `<tr><td><b>Owner passcode</b><div class="muted">ADMIN_PASSCODE in Hostinger</div></td><td><span class="tag t-dark">Super admin</span></td><td><span class="tag t-done">Active</span></td><td></td></tr>`
-      + staffList.map((u) => `<tr><td><b>${esc(u.name)}</b>${u.id === me?.id ? ' <span class="muted">(you)</span>' : ''}</td><td>${u.role === 'super' ? '<span class="tag t-dark">Super admin</span>' : '<span class="tag t-pay">Staff</span>'}</td>
+    $('#staffRows').innerHTML = `<tr><td><b>Owner passcode</b><div class="muted">ADMIN_PASSCODE in Hostinger</div></td><td><span class="tag t-dark">Super admin</span></td><td>All</td><td><span class="tag t-done">Active</span></td><td></td></tr>`
+      + staffList.map((u) => `<tr><td><b>${esc(u.name)}</b>${u.id === me?.id ? ' <span class="muted">(you)</span>' : ''}</td><td>${u.role === 'super' ? '<span class="tag t-dark">Super admin</span>' : '<span class="tag t-pay">Staff</span>'}</td><td>${esc(branchText(u))}</td>
         <td>${u.active ? '<span class="tag t-done">Active</span>' : '<span class="tag t-bad">Off</span>'}</td>
         <td style="white-space:nowrap"><button class="btn sm" data-sedit="${esc(u.id)}">Edit</button> <button class="btn red sm" data-sdel="${esc(u.id)}">✕</button></td></tr>`).join('');
   }
@@ -757,6 +765,7 @@
     const f = $('#staffForm'); editingStaff = u.id || '';
     $('#staffFormTitle').textContent = u.id ? `Edit ${u.name}` : 'Add a staff member';
     f.elements.name.value = u.name || ''; f.elements.password.value = ''; f.elements.role.value = u.role || 'staff'; f.elements.active.checked = u.active !== false;
+    f.elements.branch.value = (u.branches || [])[0] || ''; paintBranchField();
     $('#pwHint').textContent = u.id ? 'Leave empty to keep their password' : 'They log in with their name and this password';
   }
   $('#staffRows').addEventListener('click', (e) => {
@@ -764,10 +773,12 @@
     if (b.dataset.sedit) { fillStaff(staffList.find((u) => u.id === b.dataset.sedit)); $('#staffForm').scrollIntoView({ behavior: 'smooth', block: 'center' }); }
     if (b.dataset.sdel) { const u = staffList.find((x) => x.id === b.dataset.sdel); if (confirm(`Delete ${u.name}'s login?`)) busy(b, async () => { staffList = (await api('staff.delete', { id: u.id })).staff; renderStaff(); toast('Deleted'); }); }
   });
+  const paintBranchField = () => { $('#branchField').classList.toggle('hidden', $('#staffForm [name="role"]').value === 'super'); };
+  $('#staffForm [name="role"]').addEventListener('change', paintBranchField);
   $('#resetStaff').addEventListener('click', () => fillStaff());
   $('#saveStaff').addEventListener('click', (e) => busy(e.target, async () => {
     const f = $('#staffForm');
-    staffList = (await api('staff.save', { user: { id: editingStaff || undefined, name: f.elements.name.value, password: f.elements.password.value, role: f.elements.role.value, active: f.elements.active.checked } })).staff;
+    staffList = (await api('staff.save', { user: { id: editingStaff || undefined, name: f.elements.name.value, password: f.elements.password.value, role: f.elements.role.value, active: f.elements.active.checked, branches: f.elements.branch.value ? [f.elements.branch.value] : [] } })).staff;
     renderStaff(); fillStaff(); toast('Saved');
   }));
 

@@ -74,6 +74,7 @@
     .grow { flex:1; }
     .btn { border:1.5px solid var(--line); background:#fff; border-radius:10px; padding:9px 14px; font-weight:700; font-size:14px; white-space:nowrap; }
     .btn:hover { border-color:#cfc6b8; }
+    a.btn { text-decoration:none; color:var(--ink); display:inline-block; }
     .btn.pri { background:var(--ink); border-color:var(--ink); color:#fff; }
     .btn.go { background:var(--ok); border-color:var(--ok); color:#fff; }
     .btn.red { border-color:#f2c2bc; color:var(--bad); }
@@ -355,7 +356,7 @@
         <div class="card">
           <h2>Who can log in</h2>
           <p class="muted"><b>Staff</b> see orders, print labels, tip / change driver / cancel / rebook Lalamove, call or WhatsApp customers, and mark items sold out or update stock. <b>Super admin</b> can do everything, including editing and deleting orders, prices, settings, insights and these accounts. Every change is kept in the Activity log with the person's name.</p>
-          <div style="overflow-x:auto"><table class="list"><thead><tr><th>Name</th><th>Role</th><th>Status</th><th></th></tr></thead><tbody id="staffRows"></tbody></table></div>
+          <div style="overflow-x:auto"><table class="list"><thead><tr><th>Name</th><th>Role</th><th>Branch</th><th>Status</th><th></th></tr></thead><tbody id="staffRows"></tbody></table></div>
         </div>
         <div class="card">
           <h2 id="staffFormTitle">Add a staff member</h2>
@@ -363,6 +364,7 @@
             <label class="f">Name<input class="inp" name="name" maxlength="40" placeholder="e.g. Aminah" required></label>
             <label class="f">Password<input class="inp" name="password" type="text" autocomplete="off" placeholder="at least 4 characters"><small id="pwHint">They log in with their name and this password</small></label>
             <label class="f">Role<select class="inp" name="role"><option value="staff">Staff</option><option value="super">Super admin</option></select></label>
+            <label class="f" id="branchField">Branch<select class="inp" name="branch"><option value="">All branches</option></select><small>Staff only see orders for this branch</small></label>
             <label class="ck" style="align-self:center"><input type="checkbox" name="active" checked> Can log in</label>
           </form>
           <div class="row" style="margin-top:12px"><button class="btn pri" id="saveStaff" type="button">Save</button><button class="btn" id="resetStaff" type="button">Clear</button></div>
@@ -462,6 +464,6 @@
     <div class="drawer" id="drawer"><div class="scrim" data-close></div><div class="panel" id="drawerBody"></div></div>
   </div>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script src="/admin.js?v=13"></script>
+  <script src="/admin.js?v=14"></script>
 </body>
 </html>

@@ -130,13 +130,18 @@ assert.deepStrictEqual(r.errors, []);
 assert.strictEqual(r.lines[0].cutText, '12 pieces'); assert.strictEqual(r.lines[1].cutText, '1 inch thick · Chukka');
 r = priceCart({ items: [{ productId: 'lamb-chop-shoulder-slices', qty: 1, cut: { by: 'count', count: '0' } }], products: SEED_PRODUCTS, coupons: {}, customers: {}, settings: S });
 assert.ok(/how many pieces/.test(r.errors[0]));
-r = priceCart({ items: [{ productId: 'head', qty: 3 }], products: SEED_PRODUCTS, coupons: {}, customers: {}, settings: S });
-assert.strictEqual(r.errors[0], 'Head: maximum 2 sets per order.');
-r = priceCart({ items: [{ productId: 'lamb-shank', qty: 2, cut: { by: 'size', size: '2 inch' } }, { productId: 'lamb-shank', qty: 2.5 }], products: SEED_PRODUCTS, coupons: {}, customers: {}, settings: S });
-assert.strictEqual(r.errors[0], 'Lamb Shank: maximum 4 kg per order.', 'cap counts all lines of a product');
-r = priceCart({ items: [{ productId: 'brain', qty: 4 }, { productId: 'liver-set', qty: 2 }], products: SEED_PRODUCTS, coupons: {}, customers: {}, settings: S });
-assert.deepStrictEqual(r.errors, [], 'at the cap is fine');
-console.log('✓ Marrow 2/3 pcs, slices by count or thickness, max per order');
+r = priceCart({ items: [{ productId: 'head', qty: 5 }, { productId: 'lamb-shank', qty: 10 }], products: SEED_PRODUCTS, coupons: {}, customers: {}, settings: S });
+assert.deepStrictEqual(r.errors, [], 'no per-order limit when stock is not counted');
+const withStock = (id, stock) => SEED_PRODUCTS.map((p) => (p.id === id ? { ...p, stock } : { ...p, stock: null }));
+r = priceCart({ items: [{ productId: 'head', qty: 3 }], products: withStock('head', 2), coupons: {}, customers: {}, settings: S });
+assert.strictEqual(r.errors[0], 'Head: only 2 sets left.');
+r = priceCart({ items: [{ productId: 'lamb-shank', qty: 2, cut: { by: 'size', size: '2 inch' } }, { productId: 'lamb-shank', qty: 2 }], products: withStock('lamb-shank', 3.5), coupons: {}, customers: {}, settings: S });
+assert.strictEqual(r.errors[0], 'Lamb Shank: only 3.5 kg left.', 'stock counts all lines of a product');
+r = priceCart({ items: [{ productId: 'brain', qty: 1 }], products: withStock('brain', 0), coupons: {}, customers: {}, settings: S });
+assert.strictEqual(r.errors[0], 'Brain is sold out.');
+r = priceCart({ items: [{ productId: 'brain', qty: 4 }], products: withStock('brain', 4), coupons: {}, customers: {}, settings: S });
+assert.deepStrictEqual(r.errors, [], 'exactly the stock is fine');
+console.log('✓ Marrow 2/3 pcs, slices by count or thickness, stock limits');
 
 // ---- loyalty points ----
 const { pointsRedemption, pointsEarned } = require('../lib/pricing');

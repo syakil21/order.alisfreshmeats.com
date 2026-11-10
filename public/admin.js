@@ -16,6 +16,8 @@
   const prettyPhone = (p) => String(p || '').replace(/^\+60/, '0');
   const FAIL = ['BOOKING_FAILED', 'CANCELED', 'CANCELLED', 'REJECTED', 'EXPIRED'];
   let token = ls.get('afm_admin');
+  let me = (() => { try { return JSON.parse(ls.get('afm_admin_me') || 'null'); } catch { return null; } })();
+  const isSuper = () => me?.role === 'super';
 
   function toast(m) { const t = $('#toast'); t.textContent = m; t.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(() => (t.style.display = 'none'), 4000); }
   async function api(action, data = {}) {
@@ -40,12 +42,20 @@
     activity: '<path d="M3 12h4l3-8 4 16 3-8h4"/>',
     settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
     more: '<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>',
+    staff: '<rect x="4" y="3" width="16" height="18" rx="2"/><circle cx="12" cy="10" r="3"/><path d="M8 17c.8-1.8 2.2-2.7 4-2.7s3.2.9 4 2.7"/>',
   };
   const icon = (k) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${I[k]}</svg>`;
-  const TABS = [['home', 'Home'], ['menu', 'Menu'], ['insights', 'Insights'], ['customers', 'Customers'], ['promos', 'Promotions'], ['activity', 'Activity'], ['settings', 'Settings']];
-  const BOTTOM = ['home', 'menu', 'insights', 'activity', 'more'];
-  $('#nav').innerHTML = TABS.map(([k, l]) => `<button type="button" data-tab="${k}">${icon(k)}<span>${l}</span>${k === 'home' ? '<span class="dot hidden" id="navDot"></span>' : ''}</button>`).join('');
-  $('#bnav').innerHTML = BOTTOM.map((k) => `<button type="button" data-tab="${k}">${icon(k)}<span>${k === 'more' ? 'More' : TABS.find((t) => t[0] === k)[1]}</span>${k === 'home' ? '<span class="dot hidden" id="bnavDot"></span>' : ''}</button>`).join('');
+  const ALL_TABS = [['home', 'Home'], ['menu', 'Menu'], ['insights', 'Insights'], ['customers', 'Customers'], ['promos', 'Promotions'], ['activity', 'Activity'], ['staff', 'Staff'], ['settings', 'Settings']];
+  let TABS = ALL_TABS; let BOTTOM = ['home', 'menu', 'insights', 'activity', 'more'];
+  function buildNav() {
+    TABS = isSuper() ? ALL_TABS : ALL_TABS.filter(([k]) => ['home', 'menu'].includes(k));
+    BOTTOM = isSuper() ? ['home', 'menu', 'insights', 'activity', 'more'] : ['home', 'menu', 'more'];
+    $('#nav').innerHTML = TABS.map(([k, l]) => `<button type="button" data-tab="${k}">${icon(k)}<span>${l}</span>${k === 'home' ? '<span class="dot hidden" id="navDot"></span>' : ''}</button>`).join('');
+    $('#bnav').style.gridTemplateColumns = `repeat(${BOTTOM.length}, 1fr)`;
+    $('#bnav').innerHTML = BOTTOM.map((k) => `<button type="button" data-tab="${k}">${icon(k)}<span>${k === 'more' ? 'More' : TABS.find((t) => t[0] === k)[1]}</span>${k === 'home' ? '<span class="dot hidden" id="bnavDot"></span>' : ''}</button>`).join('');
+    $('#whoami').textContent = me ? `${me.name} · ${isSuper() ? 'Super admin' : 'Staff'}` : '';
+    $('#addProduct').classList.toggle('hidden', !isSuper()); $('#saveProducts').classList.toggle('hidden', !isSuper());
+  }
   const loaded = {};
   let tab = 'home';
   function showTab(t) {
@@ -54,26 +64,28 @@
     $$('[data-tab]').forEach((b) => b.classList.toggle('on', b.dataset.tab === t || (b.dataset.tab === 'more' && !BOTTOM.includes(t))));
     $$('[data-view]').forEach((v) => v.classList.toggle('hidden', v.dataset.view !== t));
     $('#topTitle').textContent = TABS.find((x) => x[0] === t)?.[1] || '';
-    const loaders = { menu: loadProducts, insights: () => loadInsights(), customers: loadMembers, promos: loadPromos, activity: () => loadActivity(true), settings: loadSettings };
+    if (!TABS.some(([k]) => k === t)) t = 'home';
+    const loaders = { menu: loadProducts, insights: () => loadInsights(), customers: loadMembers, promos: loadPromos, activity: () => loadActivity(true), settings: loadSettings, staff: loadStaff };
     if (t === 'insights' || t === 'activity' || !loaded[t]) { loaded[t] = true; loaders[t]?.(); }
     window.scrollTo(0, 0);
   }
   document.addEventListener('click', (e) => { const b = e.target.closest('[data-tab]'); if (b) showTab(b.dataset.tab); });
   function openMore() {
     openDrawerHTML(`<div class="row"><h2 class="grow" style="margin:0;font:600 20px Oswald,sans-serif;text-transform:uppercase">More</h2><button class="btn sm" data-close>Close</button></div>
-      <div class="card" style="margin-top:12px;padding:6px">${TABS.filter(([k]) => !BOTTOM.includes(k)).map(([k, l]) => `<button type="button" class="btn" data-tab="${k}" style="display:flex;gap:12px;width:100%;border:0;text-align:left;align-items:center">${icon(k)}${l}</button>`).join('')}</div>
+      ${TABS.some(([k]) => !BOTTOM.includes(k)) ? `<div class="card" style="margin-top:12px;padding:6px">${TABS.filter(([k]) => !BOTTOM.includes(k)).map(([k, l]) => `<button type="button" class="btn" data-tab="${k}" style="display:flex;gap:12px;width:100%;border:0;text-align:left;align-items:center">${icon(k)}${l}</button>`).join('')}</div>` : ''}
+      <p class="muted" style="margin:14px 2px">Logged in as <b>${esc(me?.name || '')}</b> (${isSuper() ? 'super admin' : 'staff'})</p>
       <button class="btn" type="button" id="logout2" style="width:100%">Log out</button>`);
     $('#logout2').onclick = logout;
   }
 
   // ---------- login ----------
-  function showLogin() { $('#appView').classList.add('hidden'); $('#loginView').classList.remove('hidden'); clearInterval(pollTimer); }
+  function showLogin() { $('#appView').classList.add('hidden'); $('#loginView').classList.remove('hidden'); clearInterval(pollTimer); if (me?.name && me.id !== 'owner') $('#lname').value = me.name; }
   $('#loginForm').addEventListener('submit', async (e) => {
     e.preventDefault(); $('#loginErr').textContent = '';
-    try { const d = await api('login', { passcode: $('#pass').value }); token = d.token; ls.set('afm_admin', token); start(); }
+    try { const d = await api('login', { name: $('#lname').value.trim(), password: $('#pass').value }); token = d.token; me = d.me; ls.set('afm_admin', token); ls.set('afm_admin_me', JSON.stringify(me)); start(); }
     catch (err) { $('#loginErr').textContent = err.message; }
   });
-  async function logout() { try { await api('logout'); } catch {} token = null; ls.set('afm_admin', null); location.reload(); }
+  async function logout() { try { await api('logout'); } catch {} token = null; ls.set('afm_admin', null); ls.set('afm_admin_me', null); location.reload(); }
   $('#logout').addEventListener('click', logout);
 
   // ---------- home: store switch ----------
@@ -143,6 +155,12 @@
   function renderTiles() {
     const t = home.today;
     const active = home.orders.filter((o) => o.paid && ['preparing', 'ready'].includes(o.board)).length;
+    if (t.salesSen === undefined) { // staff: no sales figures
+      $('#todayTiles').innerHTML = `
+        <div class="tile"><div class="k">Orders today</div><div class="v">${t.orders}</div><div class="d">${t.delivery} delivery · ${t.pickup} pickup</div></div>
+        <div class="tile"><div class="k">In progress</div><div class="v">${active}</div><div class="d">${t.unpaid ? `${t.unpaid} checkout${t.unpaid > 1 ? 's' : ''} not paid` : 'orders being prepared'}</div></div>`;
+      return;
+    }
     $('#todayTiles').innerHTML = `
       <div class="tile"><div class="k">Sales today</div><div class="v">${rm(t.salesSen)}</div><div class="d">${delta(t.salesSen, t.prev.salesSen)}</div></div>
       <div class="tile"><div class="k">Orders today</div><div class="v">${t.orders}</div><div class="d">${t.delivery} delivery · ${t.pickup} pickup</div></div>
@@ -151,7 +169,7 @@
   }
 
   // ---------- home: order board ----------
-  let boardTab = 'preparing'; let allOrders = null;
+  let boardTab = 'preparing'; let allOrders = null; let deletedOrders = null;
   const isLater = (o) => o.fulfilment === 'pickup' && o.board === 'preparing' && o.pickupAt && Date.parse(o.pickupAt) - Date.now() > 120 * 60000;
   const GROUPS = [
     ['preparing', 'Preparing', (o) => o.board === 'preparing' && !isLater(o)],
@@ -161,11 +179,12 @@
     ['done', 'Done today', (o) => o.board === 'done'],
     ['unpaid', 'Checking out', (o) => o.board === 'unpaid'],
     ['all', 'All orders', () => true],
+    ['deleted', 'Deleted', () => true],
   ];
   function speedTag(o) {
     if (o.fulfilment === 'pickup') return `<span class="tag t-pick">🛍 Pickup ${o.pickupAt ? esc(whenText(Date.parse(o.pickupAt))) : ''}</span>`;
     if (o.deliveryOption === 'priority') return '<span class="tag t-dark">⚡ Priority</span>';
-    if (o.deliveryOption === 'saver') return '<span class="tag t-pay">Saver</span>';
+    if (o.deliveryOption === 'saver') return '<span class="tag t-pay">Pooling</span>';
     return '<span class="tag t-pay">🛵 Delivery</span>';
   }
   function statusLine(o) {
@@ -205,20 +224,20 @@
       <div class="items">${esc(o.items || `${o.itemCount} items`)}</div>
       <div class="meta"><span class="sl">${statusLine(o)}</span><span class="tot">${rm(o.totalSen)}</span></div>
       ${o.problem && o.paid && !o.cancelledAt ? `<div class="warn">⚠ ${esc(o.problem)}</div>` : ''}
-      <div class="acts">${cardActions(o)}</div>
+      ${o.deletedAt ? `<div class="warn">Deleted by ${esc(o.deletedBy || '')} ${fmtDT(o.deletedAt)}${o.deleteReason ? `: ${esc(o.deleteReason)}` : ''}</div>` : `<div class="acts">${cardActions(o)}</div>`}
     </div>`;
   }
   function renderBoard() {
     if (!home) return;
     const q = $('#search').value.trim().toLowerCase();
-    const src = boardTab === 'all' && allOrders ? allOrders : home.orders;
+    const src = boardTab === 'all' && allOrders ? allOrders : boardTab === 'deleted' ? deletedOrders || [] : home.orders;
     const counts = Object.fromEntries(GROUPS.map(([k, , f]) => [k, home.orders.filter(f).length]));
-    $('#boardTabs').innerHTML = GROUPS.map(([k, l]) => `<button type="button" class="chip ${k === boardTab ? 'on' : ''} ${k === 'attention' && counts[k] ? 'alert' : ''}" data-board="${k}">${l}${k !== 'all' ? `<span class="n">${counts[k]}</span>` : ''}</button>`).join('');
+    $('#boardTabs').innerHTML = GROUPS.filter(([k]) => k !== 'deleted' || isSuper()).map(([k, l]) => `<button type="button" class="chip ${k === boardTab ? 'on' : ''} ${k === 'attention' && counts[k] ? 'alert' : ''}" data-board="${k}">${l}${!['all', 'deleted'].includes(k) ? `<span class="n">${counts[k]}</span>` : ''}</button>`).join('');
     const f = GROUPS.find((g) => g[0] === boardTab)[2];
     let list = q ? src.filter((o) => [o.no, o.name, o.phone, prettyPhone(o.phone)].join(' ').toLowerCase().includes(q)) : src.filter(f);
     if (boardTab === 'later') list = list.sort((a, b) => Date.parse(a.pickupAt) - Date.parse(b.pickupAt));
     if (boardTab === 'preparing') list = list.sort((a, b) => a.createdAt - b.createdAt); // oldest first, like a kitchen queue
-    $('#board').innerHTML = list.map(orderCard).join('') || `<div class="empty" style="grid-column:1/-1">${q ? 'No orders match.' : { preparing: 'No orders to prepare. New paid orders appear here with a sound.', ready: 'Nothing waiting for collection or on the way.', attention: 'All good. Nothing needs attention.', later: 'No pickups booked for later.', done: 'No completed orders yet today.', unpaid: 'Nobody is checking out right now.', all: 'No orders yet.' }[boardTab]}</div>`;
+    $('#board').innerHTML = list.map(orderCard).join('') || `<div class="empty" style="grid-column:1/-1">${q ? 'No orders match.' : { preparing: 'No orders to prepare. New paid orders appear here with a sound.', ready: 'Nothing waiting for collection or on the way.', attention: 'All good. Nothing needs attention.', later: 'No pickups booked for later.', done: 'No completed orders yet today.', unpaid: 'Nobody is checking out right now.', all: 'No orders yet.', deleted: 'No deleted orders.' }[boardTab]}</div>`;
     const n = counts.preparing + counts.attention;
     for (const id of ['#navDot', '#bnavDot']) { const d = $(id); if (d) { d.textContent = n; d.classList.toggle('hidden', !n); } }
   }
@@ -226,6 +245,7 @@
     const b = e.target.closest('[data-board]'); if (!b) return;
     boardTab = b.dataset.board; renderBoard();
     if (boardTab === 'all') { try { allOrders = (await api('orders.list', { limit: 300 })).orders; renderBoard(); } catch (err) { toast(err.message); } }
+    if (boardTab === 'deleted') { try { deletedOrders = (await api('orders.deleted')).orders; renderBoard(); } catch (err) { toast(err.message); } }
   });
   $('#search').addEventListener('input', () => renderBoard());
   $('#board').addEventListener('click', (e) => {
@@ -278,8 +298,9 @@
     }
     $('#drawerBody').innerHTML = `
       <div class="row"><h2 class="grow" style="margin:0;font:600 22px Oswald,sans-serif">${esc(o.no)}</h2><button class="btn sm" data-close>Close</button></div>
-      <div class="row" style="margin:8px 0 12px">${speedTag(s)} <span class="tag ${o.cancelledAt ? 't-bad' : paid ? 't-done' : 't-pay'}">${esc(o.cancelledAt ? 'Cancelled' : paid ? s.stageText : 'Not paid')}</span>${s.problem && paid && !o.cancelledAt ? `<span class="warn">⚠ ${esc(s.problem)}</span>` : ''}</div>
-      <div class="card"><div class="row">
+      <div class="row" style="margin:8px 0 12px">${speedTag(s)} <span class="tag ${o.cancelledAt || o.deletedAt ? 't-bad' : paid ? 't-done' : 't-pay'}">${esc(o.deletedAt ? 'Deleted' : o.cancelledAt ? 'Cancelled' : paid ? s.stageText : 'Not paid')}</span>${s.problem && paid && !o.cancelledAt && !o.deletedAt ? `<span class="warn">⚠ ${esc(s.problem)}</span>` : ''}</div>
+      ${o.deletedAt ? `<div class="note" style="margin-bottom:14px"><b>Deleted by ${esc(o.deletedBy || '')}</b>, ${fmtDT(o.deletedAt)}${o.deleteReason ? `: ${esc(o.deleteReason)}` : ''}. It no longer shows in orders or sales, but the record stays here and in the Activity log.</div>` : ''}
+      <div class="card ${o.deletedAt ? 'hidden' : ''}"><div class="row">
         ${paid ? `<button class="btn pri sm" data-act="order.reprint">🖨 Reprint label</button><button class="btn sm" data-act="labelpdf">Label PDF</button>` : ''}
         ${paid && !o.cancelledAt && pickup && !o.prep?.readyAt ? '<button class="btn go sm" data-act="order.ready">✓ Ready for pickup</button>' : ''}
         ${paid && !o.cancelledAt && pickup && o.prep?.readyAt && !o.prep?.collectedAt ? '<button class="btn go sm" data-act="order.collected">✓ Collected</button>' : ''}
@@ -300,8 +321,9 @@
         <tr><td colspan="2">Subtotal</td><td class="num">${rm(o.subtotalSen)}</td></tr>
         ${(o.discounts || []).map((x) => `<tr><td colspan="2">${esc(x.label)}</td><td class="num">− ${rm(x.sen)}</td></tr>`).join('')}
         ${o.pointsSen ? `<tr><td colspan="2">Points used (${o.pointsUsed})</td><td class="num">− ${rm(o.pointsSen)}</td></tr>` : ''}
-        <tr><td colspan="2">${pickup ? 'Self pickup' : `Delivery charged${o.deliveryOption && o.deliveryOption !== 'regular' ? ` (${esc(o.deliveryOption)})` : ''}`}</td><td class="num">${rm(o.deliverySen)}</td></tr>
+        <tr><td colspan="2">${pickup ? 'Self pickup' : `Delivery charged (${({ priority: 'Priority', saver: 'Pooling' })[o.deliveryOption] || 'Regular'})`}</td><td class="num">${rm(o.deliverySen)}</td></tr>
         <tr><td colspan="2"><b>Total</b></td><td class="num"><b>${rm(o.totalSen)}</b></td></tr>
+        ${o.originalTotalSen != null && o.originalTotalSen !== o.totalSen ? `<tr><td colspan="2">Customer paid</td><td class="num">${rm(o.originalTotalSen)}</td></tr><tr><td colspan="2"><b class="${o.totalSen > o.originalTotalSen ? 'bad' : 'ok'}">${o.totalSen > o.originalTotalSen ? 'To collect from customer' : 'To refund to customer'}</b></td><td class="num"><b>${rm(Math.abs(o.totalSen - o.originalTotalSen))}</b></td></tr>` : ''}
         ${o.pointsEarned && paid ? `<tr><td colspan="3" class="muted">Customer earned ${o.pointsEarned} points</td></tr>` : ''}
       </table></div>
       <div class="card"><dl class="kv">
@@ -317,10 +339,19 @@
         <dt>Label</dt><dd>${p.status === 'sent' ? `<span class="ok">Printed</span> ${fmtDT(p.at)}${p.count > 1 ? ` (${p.count}×)` : ''}` : p.status ? `<span class="bad">${esc(p.status.replace('_', ' '))}</span><div class="warn">${esc(p.error || '')}</div>` : '<span class="muted">—</span>'}</dd>
       </dl></div>
       <div class="card"><h2>History</h2><ol class="log">${(o.log || []).slice().reverse().map((l) => `<li><span class="muted">${fmtDT(l.at)}</span> ${esc(l.msg)}</li>`).join('')}</ol></div>
-      ${paid && !o.cancelledAt ? `<div class="row">${d.lalamoveOrderId && ['ASSIGNING_DRIVER', 'ON_GOING'].includes(d.status) ? '<button class="btn red sm" data-act="order.cancelDelivery" data-confirm="Cancel this Lalamove delivery? Rebooking later gets a new price, which is often higher. Try a tip or change driver first.">Cancel Lalamove</button>' : ''}<button class="btn red sm" data-act="order.cancel">Cancel order…</button></div>` : ''}`;
+      ${!o.deletedAt ? `<div class="row">
+        ${paid && !o.cancelledAt && d.lalamoveOrderId && ['ASSIGNING_DRIVER', 'ON_GOING'].includes(d.status) ? '<button class="btn red sm" data-act="order.cancelDelivery" data-confirm="Cancel this Lalamove delivery? Rebooking later gets a new price, which is often higher. Try a tip or change driver first.">Cancel Lalamove</button>' : ''}
+        ${isSuper() ? `<button class="btn sm" data-act="edit">✎ Edit order</button>${paid && !o.cancelledAt ? '<button class="btn red sm" data-act="order.cancel">Cancel order…</button>' : ''}<button class="btn red sm" data-act="delete">Delete order…</button>` : ''}
+      </div>` : ''}`;
     $('#drawerBody').querySelectorAll('[data-act]').forEach((b) => b.addEventListener('click', () => {
       const act = b.dataset.act; const extra = {};
       if (act === 'labelpdf') return window.open(`/api/label?id=${encodeURIComponent(o.id)}&auth=${encodeURIComponent(token)}`, '_blank');
+      if (act === 'edit') return editOrder(o);
+      if (act === 'delete') {
+        const why = prompt(`Delete ${o.no} (${o.customer.name}, ${rm(o.totalSen)})?\n\nIt disappears from orders and sales${o.payment.status === 'paid' ? ', stock and points are put back' : ''}. The record stays in the Activity log.\n\nReason:`, 'Test order');
+        if (why == null) return;
+        return busy(b, async () => { await api('order.delete', { id: o.id, reason: why }); toast(`${o.no} deleted`); closeDrawer(); deletedOrders = null; await loadHome(); });
+      }
       if (b.dataset.confirm && !confirm(b.dataset.confirm)) return;
       if (act === 'order.tip') extra.amountRM = Number($('#tipAmt').value);
       if (act === 'order.changeDriver') extra.reason = $('#drvReason').value;
@@ -343,6 +374,44 @@
     }));
   }
 
+  // ---------- super admin: edit an order ----------
+  function editOrder(o) {
+    const pickup = o.fulfilment === 'pickup';
+    const local = (iso) => (iso ? new Date(Date.parse(iso) + 8 * 3600000).toISOString().slice(0, 16) : '');
+    $('#drawerBody').innerHTML = `
+      <div class="row"><h2 class="grow" style="margin:0;font:600 22px Oswald,sans-serif">Edit ${esc(o.no)}</h2><button class="btn sm" id="edBack">Back</button></div>
+      <p class="muted">Every change is saved in the order history and the Activity log with your name.</p>
+      <div class="card"><h2>Customer</h2><div class="grid">
+        <label class="f">Name<input class="inp" id="edName" value="${esc(o.customer.name)}"></label>
+        <label class="f">Phone<input class="inp" id="edPhone" value="${esc(prettyPhone(o.customer.phone))}"></label>
+        <label class="f">Email<input class="inp" id="edEmail" value="${esc(o.customer.email || '')}"></label>
+      </div></div>
+      <div class="card"><h2>${pickup ? 'Self pickup' : 'Delivery address'}</h2><div class="grid">
+        ${pickup ? `<label class="f">Pickup time<input class="inp" id="edPickup" type="datetime-local" value="${local(o.pickup?.at)}"></label>`
+        : `<label class="f" style="grid-column:1/-1">Address<input class="inp" id="edAddr" value="${esc(o.address.text || '')}"><small>Changing the text doesn't move the map pin or change the Lalamove booking.</small></label>
+           <label class="f">Unit / floor<input class="inp" id="edUnit" value="${esc(o.address.unit || '')}"></label>`}
+        <label class="f">Note<input class="inp" id="edNotes" value="${esc(o.address.notes || '')}"></label>
+      </div></div>
+      <div class="card"><h2>Items</h2><table class="list">${o.items.map((it, i) => `<tr data-ei="${i}">
+        <td>${esc(it.name)}<input class="inp" data-ecut value="${esc(it.cutText || '')}" placeholder="Cutting / note" style="width:100%;margin-top:6px"></td>
+        <td style="width:110px"><input class="inp" data-eqty type="number" min="0.5" step="${it.unit === 'kg' ? 0.5 : 1}" value="${it.qty}" style="width:100%"><div class="muted">${esc(it.unit)} · RM${(it.priceSen / 100).toFixed(2)}</div></td>
+        <td style="width:70px"><label class="ck"><input type="checkbox" data-erm> Remove</label></td></tr>`).join('')}</table>
+        <p class="muted">The total is worked out again. If it changes, the order shows how much to collect or refund.</p></div>
+      <label class="f">Reason for the change<input class="inp" id="edReason" placeholder="e.g. customer called to add 1 kg"></label>
+      <div class="row" style="margin-top:14px"><button class="btn pri" id="edSave" style="flex:1">Save changes</button></div>`;
+    $('#edBack').onclick = () => renderOrder(o);
+    $('#edSave').onclick = (e) => busy(e.target, async () => {
+      const items = $$('#drawerBody [data-ei]').map((tr) => ({ i: Number(tr.dataset.ei), qty: Number($('[data-eqty]', tr).value), cutText: $('[data-ecut]', tr).value, remove: $('[data-erm]', tr).checked }));
+      const r = await api('order.edit', {
+        id: o.id, reason: $('#edReason').value,
+        customer: { name: $('#edName').value, phone: $('#edPhone').value, email: $('#edEmail').value },
+        address: pickup ? { notes: $('#edNotes').value } : { text: $('#edAddr').value, unit: $('#edUnit').value, notes: $('#edNotes').value },
+        pickupAt: pickup ? $('#edPickup').value : undefined, items,
+      });
+      renderOrder(r.order); toast('Order updated'); loadHome();
+    });
+  }
+
   // ---------- menu ----------
   const MODES = [['size', 'Piece size'], ['weight', 'Piece weight'], ['split', 'Cut each into (2/3 pcs)'], ['count', 'Number of pieces'], ['thickness', 'Slice thickness']];
   let products = []; let dirty = false;
@@ -354,7 +423,8 @@
     $('#menuList').innerHTML = cats.map((c) => `<div class="catname">${esc(c)}</div>` + products.map((p, i) => [p, i]).filter(([p]) => p.category === c).map(([p, i]) => `
       <div class="mi ${p.available ? '' : 'off'}" data-i="${i}">
         <div class="ph2">${p.image ? `<img src="/api/image?id=${esc(p.image)}" alt="">` : 'No photo'}</div>
-        <div class="nm" data-editp="${i}"><b>${esc(p.name || '(new item)')}</b><span>${[p.note, (p.cutModes || []).length ? '✂ ' + p.cutModes.map((m) => MODES.find((x) => x[0] === m)?.[1].split(' (')[0].toLowerCase()).join(', ') : '', p.maxQty ? `max ${qtyText(p.maxQty, p.unit)}` : ''].filter(Boolean).map(esc).join(' · ')}</span></div>
+        <div class="nm" data-editp="${i}"><b>${esc(p.name || '(new item)')}</b><span>${[p.note, (p.cutModes || []).length ? '✂ ' + p.cutModes.map((m) => MODES.find((x) => x[0] === m)?.[1].split(' (')[0].toLowerCase()).join(', ') : ''].filter(Boolean).map(esc).join(' · ')}</span></div>
+        ${p.id && (p.stock != null || p.stockHint) ? `<button type="button" class="tag ${p.stock == null ? 't-pay' : p.stock < (Number(p.min) || 0.5) ? 't-bad' : p.stock <= 5 ? 't-prep' : 't-done'}" data-stock="${i}" title="Update stock" style="border:0;cursor:pointer">${p.stock == null ? '+ Stock' : p.stock < (Number(p.min) || 0.5) ? 'Sold out · 0' : `${qtyText(p.stock, p.unit)} left`}</button>` : ''}
         <div class="pr">RM ${Number(p.price).toFixed(2)}<span class="muted">/${esc(p.unit)}</span></div>
         <label class="sw-sm" title="${p.available ? 'On sale' : 'Sold out'}"><input type="checkbox" data-avail="${i}" ${p.available ? 'checked' : ''} aria-label="${esc(p.name)} on sale"><i></i></label>
       </div>`).join('')).join('') || '<p class="muted">No items.</p>';
@@ -366,7 +436,20 @@
     try { const fresh = (await api('products.toggle', { id: p.id, available: e.target.checked })).products; const f = fresh.find((x) => x.id === p.id); p.available = f.available; renderProducts(); toast(`${p.name}: ${p.available ? 'on sale' : 'sold out'}`); }
     catch (err) { toast(err.message); e.target.checked = !e.target.checked; }
   });
-  $('#menuList').addEventListener('click', (e) => { const n = e.target.closest('[data-editp]'); if (n) editProduct(Number(n.dataset.editp)); });
+  $('#menuList').addEventListener('click', (e) => {
+    const st = e.target.closest('[data-stock]'); if (st) return askStock(products[Number(st.dataset.stock)]);
+    const n = e.target.closest('[data-editp]'); if (n && isSuper()) editProduct(Number(n.dataset.editp));
+  });
+  // Stock: goes down when an order is paid, back up when an order is cancelled or deleted
+  async function askStock(p, value) {
+    const v = value !== undefined ? value : prompt(`How many ${p.unit === 'kg' ? 'kg' : p.unit === 'set' ? 'sets' : 'pieces'} of ${p.name} do you have now?\n\nIt goes down by itself when orders are paid. Leave empty to stop counting (no limit).`, p.stock ?? '');
+    if (v == null) return;
+    try {
+      const fresh = (await api('stock.set', { id: p.id, qty: String(v).trim() })).products;
+      const f = fresh.find((x) => x.id === p.id); p.stock = f.stock; renderProducts();
+      toast(p.stock == null ? `${p.name}: not counting stock` : `${p.name}: ${qtyText(p.stock, p.unit)} in stock`);
+    } catch (err) { toast(err.message); }
+  }
   function editProduct(i) {
     const p = products[i];
     openDrawerHTML(`
@@ -382,7 +465,7 @@
           <label class="f">Note <small style="display:inline">(e.g. “1 set”)</small><input class="inp" data-k="note" value="${esc(p.note)}"></label>
           <label class="f">Price (RM)<input class="inp" data-k="price" type="number" step="0.01" min="0" value="${esc(p.price)}"></label>
           <label class="f">Sold per<select class="inp" data-k="unit">${['kg', 'set', 'pc'].map((u) => `<option ${p.unit === u ? 'selected' : ''}>${u}</option>`).join('')}</select></label>
-          <label class="f">Max per order<input class="inp" data-k="maxQty" type="number" min="0" step="${p.unit === 'kg' ? 0.5 : 1}" value="${esc(p.maxQty || '')}" placeholder="0 = no limit"><small>For items with limited stock, e.g. head, brain</small></label>
+          <label class="f">Stock now${p.id ? '' : ' <small style="display:inline">(save the item first)</small>'}<span class="row" style="gap:6px;flex-wrap:nowrap;margin-top:4px"><input class="inp" id="pStock" type="number" min="0" step="${p.unit === 'kg' ? 0.5 : 1}" value="${p.stock ?? ''}" placeholder="not counted" style="margin:0" ${p.id ? '' : 'disabled'}><button type="button" class="btn sm" id="pStockSave" ${p.id ? '' : 'disabled'}>Update</button></span><small>Empty = no limit. Goes down when orders are paid.</small></label>
         </div>
         <h2 style="margin-top:16px">Cutting choices for customers</h2>
         <div class="modes">${MODES.map(([k, l]) => `<label class="ck"><input type="checkbox" data-mode="${k}" ${(p.cutModes || []).includes(k) ? 'checked' : ''}> ${l}</label>`).join('')}
@@ -406,6 +489,7 @@
     body.addEventListener('change', (e) => { if (e.target.type === 'checkbox' || e.target.tagName === 'SELECT') e.target.dispatchEvent(new Event('input', { bubbles: true })); });
     $('#pPhoto').onclick = () => { if (!p.id) return toast('Save the new item first, then add its photo.'); photoFor = p.id; $('#photoFile').value = ''; $('#photoFile').click(); };
     if ($('#pNoPhoto')) $('#pNoPhoto').onclick = (e) => confirm(`Remove the photo of ${p.name}?`) && busy(e.target, async () => { mergeImages((await api('products.imageRemove', { id: p.id })).products); editProduct(i); });
+    $('#pStockSave').onclick = () => askStock(p, $('#pStock').value);
     $('#pDel').onclick = () => { if (confirm(`Delete ${p.name}? Click Save changes afterwards.`)) { products.splice(i, 1); markDirty(); renderProducts(); closeDrawer(); } };
     body.querySelectorAll('[data-mv]').forEach((b) => (b.onclick = () => { const j = i + Number(b.dataset.mv); if (j < 0 || j >= products.length) return; [products[i], products[j]] = [products[j], products[i]]; markDirty(); renderProducts(); editProduct(j); }));
     $('#pSave').onclick = (e) => saveProducts(e.target).then(() => closeDrawer());
@@ -437,7 +521,7 @@
     photoFor = null;
   });
   $('#addProduct').addEventListener('click', () => {
-    products.push({ category: products.at(-1)?.category || 'Other', name: '', note: '', price: 0, unit: 'kg', step: 0.5, min: 0.5, cutModes: [], cooking: false, maxQty: 0, image: '', available: true });
+    products.push({ category: products.at(-1)?.category || 'Other', name: '', note: '', price: 0, unit: 'kg', step: 0.5, min: 0.5, cutModes: [], cooking: false, stock: null, image: '', available: true });
     markDirty(); renderProducts(); editProduct(products.length - 1);
   });
   async function saveProducts(btn) { return busy(btn, async () => { products = (await api('products.save', { products })).products; dirty = false; renderProducts(); toast('Menu saved. The shop is updated.'); }); }
@@ -485,7 +569,7 @@
         <div class="card"><h2>Delivery &amp; pickup</h2><div class="money">
           <span>Delivery orders</span><span class="num">${x.delivery}</span>
           <span class="muted">· Priority</span><span class="num">${x.priority}</span>
-          <span class="muted">· Saver</span><span class="num">${x.saver}</span>
+          <span class="muted">· Pooling</span><span class="num">${x.saver}</span>
           <span>Self pickup orders</span><span class="num">${x.pickup}</span>
           <span>Deliveries rebooked</span><span class="num">${x.rebooked}</span>
           <span class="sep"></span>
@@ -631,7 +715,7 @@
   }));
 
   // ---------- activity log ----------
-  const ATYPES = [['', 'All'], ['order', 'Orders'], ['payment', 'Payments'], ['delivery', 'Lalamove'], ['print', 'Printing'], ['staff', 'Staff'], ['member', 'Sign-ups'], ['push', 'Notifications'], ['error', 'Errors']];
+  const ATYPES = [['', 'All'], ['order', 'Orders'], ['payment', 'Payments'], ['delivery', 'Lalamove'], ['print', 'Printing'], ['stock', 'Stock'], ['staff', 'Staff'], ['member', 'Sign-ups'], ['push', 'Notifications'], ['error', 'Errors']];
   let actType = ''; let actNext = 0; let actItems = []; let actT;
   $('#actTypes').innerHTML = ATYPES.map(([k, l]) => `<button type="button" class="chip ${k === actType ? 'on' : ''}" data-atype="${k}">${l}</button>`).join('');
   $('#actTypes').addEventListener('click', (e) => { const b = e.target.closest('[data-atype]'); if (!b) return; actType = b.dataset.atype; $$('#actTypes .chip').forEach((c) => c.classList.toggle('on', c === b)); loadActivity(true); });
@@ -647,6 +731,33 @@
       $('#actMore').classList.toggle('hidden', actNext == null);
     } catch (e) { toast(e.message); }
   }
+
+  // ---------- staff accounts (super admin) ----------
+  let staffList = []; let editingStaff = '';
+  async function loadStaff() { staffList = (await api('staff.list')).staff; renderStaff(); }
+  function renderStaff() {
+    $('#staffRows').innerHTML = `<tr><td><b>Owner passcode</b><div class="muted">ADMIN_PASSCODE in Hostinger</div></td><td><span class="tag t-dark">Super admin</span></td><td><span class="tag t-done">Active</span></td><td></td></tr>`
+      + staffList.map((u) => `<tr><td><b>${esc(u.name)}</b>${u.id === me?.id ? ' <span class="muted">(you)</span>' : ''}</td><td>${u.role === 'super' ? '<span class="tag t-dark">Super admin</span>' : '<span class="tag t-pay">Staff</span>'}</td>
+        <td>${u.active ? '<span class="tag t-done">Active</span>' : '<span class="tag t-bad">Off</span>'}</td>
+        <td style="white-space:nowrap"><button class="btn sm" data-sedit="${esc(u.id)}">Edit</button> <button class="btn red sm" data-sdel="${esc(u.id)}">✕</button></td></tr>`).join('');
+  }
+  function fillStaff(u = {}) {
+    const f = $('#staffForm'); editingStaff = u.id || '';
+    $('#staffFormTitle').textContent = u.id ? `Edit ${u.name}` : 'Add a staff member';
+    f.elements.name.value = u.name || ''; f.elements.password.value = ''; f.elements.role.value = u.role || 'staff'; f.elements.active.checked = u.active !== false;
+    $('#pwHint').textContent = u.id ? 'Leave empty to keep their password' : 'They log in with their name and this password';
+  }
+  $('#staffRows').addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.sedit) { fillStaff(staffList.find((u) => u.id === b.dataset.sedit)); $('#staffForm').scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+    if (b.dataset.sdel) { const u = staffList.find((x) => x.id === b.dataset.sdel); if (confirm(`Delete ${u.name}'s login?`)) busy(b, async () => { staffList = (await api('staff.delete', { id: u.id })).staff; renderStaff(); toast('Deleted'); }); }
+  });
+  $('#resetStaff').addEventListener('click', () => fillStaff());
+  $('#saveStaff').addEventListener('click', (e) => busy(e.target, async () => {
+    const f = $('#staffForm');
+    staffList = (await api('staff.save', { user: { id: editingStaff || undefined, name: f.elements.name.value, password: f.elements.password.value, role: f.elements.role.value, active: f.elements.active.checked } })).staff;
+    renderStaff(); fillStaff(); toast('Saved');
+  }));
 
   // ---------- settings ----------
   let settings = null; let printers = [];
@@ -732,8 +843,9 @@
 
   // ---------- start ----------
   async function start() {
+    try { me = (await api('me')).me; ls.set('afm_admin_me', JSON.stringify(me)); } catch { return; }
     $('#loginView').classList.add('hidden'); $('#appView').classList.remove('hidden');
-    paintSound(); paintPush(); showTab('home');
+    buildNav(); paintSound(); paintPush(); showTab('home');
     await loadHome();
     clearInterval(pollTimer); pollTimer = setInterval(loadHome, 15000);
     openFromHash();

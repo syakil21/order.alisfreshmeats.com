@@ -227,7 +227,8 @@
     <img src="/logo.png" alt="Ali's">
     <h2 style="margin-top:14px;font:600 22px 'Oswald',sans-serif;text-transform:uppercase">Staff dashboard</h2>
     <form id="loginForm" class="card">
-      <input class="inp" id="pass" type="password" placeholder="Passcode" autocomplete="current-password" style="width:100%">
+      <input class="inp" id="lname" placeholder="Your name" autocomplete="username" style="width:100%;margin-bottom:8px">
+      <input class="inp" id="pass" type="password" placeholder="Password" autocomplete="current-password" style="width:100%">
       <button class="btn pri" style="width:100%;margin-top:10px">Log in</button>
       <p class="warn" id="loginErr"></p>
     </form>
@@ -237,7 +238,7 @@
     <aside class="side">
       <div class="brand"><img src="/logo.png" alt="Ali's"><div><b>Fresh Meats</b><span>Staff dashboard</span></div></div>
       <nav class="nav" id="nav"></nav>
-      <div class="foot">order.alisfreshmeats.com<br><button type="button" id="logout">Log out</button></div>
+      <div class="foot"><span id="whoami"></span><br><button type="button" id="logout">Log out</button></div>
     </aside>
     <div class="main">
       <div class="topbar"><img src="/logo.png" alt=""><b id="topTitle">Home</b><span id="topStatus" class="tag t-done">Open</span></div>
@@ -265,7 +266,7 @@
       <!-- MENU -->
       <section class="page hidden" data-view="menu">
         <div class="ph"><h1>Menu</h1><button class="btn" id="addProduct" type="button">+ Add item</button><button class="btn pri" id="saveProducts" type="button">Save changes</button></div>
-        <p class="muted" style="margin-top:-6px">Turn the switch off when an item sold out (it saves straight away). Tap an item to change its price, photo, cutting choices or the most a customer can order.</p>
+        <p class="muted" style="margin-top:-6px">Turn the switch off when an item is sold out (saves straight away). Tap the stock tag to update how many you have; it goes down by itself when orders are paid. Super admins tap an item to change its price, photo or cutting choices.</p>
         <div class="card" id="menuList"></div>
         <input type="file" id="photoFile" accept="image/*" hidden>
       </section>
@@ -348,6 +349,27 @@
         <div class="row"><button class="btn" id="actMore" type="button">Load more</button><span class="muted">Keeps the last 5,000 events: orders, payments, Lalamove, printing, staff changes, sign-ups and errors.</span></div>
       </section>
 
+      <!-- STAFF ACCOUNTS (super admin) -->
+      <section class="page hidden" data-view="staff">
+        <div class="ph"><h1>Staff</h1></div>
+        <div class="card">
+          <h2>Who can log in</h2>
+          <p class="muted"><b>Staff</b> see orders, print labels, tip / change driver / cancel / rebook Lalamove, call or WhatsApp customers, and mark items sold out or update stock. <b>Super admin</b> can do everything, including editing and deleting orders, prices, settings, insights and these accounts. Every change is kept in the Activity log with the person's name.</p>
+          <div style="overflow-x:auto"><table class="list"><thead><tr><th>Name</th><th>Role</th><th>Status</th><th></th></tr></thead><tbody id="staffRows"></tbody></table></div>
+        </div>
+        <div class="card">
+          <h2 id="staffFormTitle">Add a staff member</h2>
+          <form id="staffForm" class="grid">
+            <label class="f">Name<input class="inp" name="name" maxlength="40" placeholder="e.g. Aminah" required></label>
+            <label class="f">Password<input class="inp" name="password" type="text" autocomplete="off" placeholder="at least 4 characters"><small id="pwHint">They log in with their name and this password</small></label>
+            <label class="f">Role<select class="inp" name="role"><option value="staff">Staff</option><option value="super">Super admin</option></select></label>
+            <label class="ck" style="align-self:center"><input type="checkbox" name="active" checked> Can log in</label>
+          </form>
+          <div class="row" style="margin-top:12px"><button class="btn pri" id="saveStaff" type="button">Save</button><button class="btn" id="resetStaff" type="button">Clear</button></div>
+          <p class="note" style="margin-top:14px">The owner passcode (<b>ADMIN_PASSCODE</b> in Hostinger) always logs in as super admin. If your staff know it, change it in Hostinger after giving them their own logins.</p>
+        </div>
+      </section>
+
       <!-- SETTINGS -->
       <section class="page hidden" data-view="settings">
         <div class="ph"><h1>Settings</h1></div>
@@ -368,10 +390,9 @@
           </div>
           <div class="card"><h2>Delivery options</h2>
             <div class="grid">
-              <label class="ck"><input type="checkbox" name="priority.enabled"><span>Offer Priority delivery<small>Customer pays extra; we add it on Lalamove as a priority fee so a driver accepts faster.</small></span></label>
-              <label class="f">Priority extra (RM)<input class="inp" type="number" step="0.5" min="0" name="priority.fee"></label>
-              <label class="ck"><input type="checkbox" name="saver.enabled"><span>Offer Saver (pooling)<small>Only works if Lalamove turns on pooling for your API account. Ask your Lalamove account manager for the service type key.</small></span></label>
-              <label class="f">Saver service type<input class="inp" name="saver.serviceType" placeholder="from Lalamove"></label>
+              <label class="ck"><input type="checkbox" name="priority.enabled"><span>Offer Priority<small>Lalamove's own Priority price (faster driver matching), the same choice as in the Lalamove app. The customer pays it.</small></span></label>
+              <label class="ck"><input type="checkbox" name="saver.enabled"><span>Offer Pooling<small>Lalamove doesn't offer Pooling through its API yet. Only tick this if Lalamove enables it for your account and gives you the service type.</small></span></label>
+              <label class="f">Pooling service type<input class="inp" name="saver.serviceType" placeholder="from Lalamove"></label>
               <label class="f">Delivery buffer (RM)<input class="inp" type="number" step="0.1" min="0" name="deliveryMarkup"><small>Added to every delivery fee. Covers Lalamove price changes if a delivery must be rebooked. 0 = customer pays the Lalamove price.</small></label>
               <label class="f">Vehicle<input class="inp" name="serviceType" placeholder="MOTORCYCLE"></label>
               <label class="f">Use a bigger vehicle above (kg)<input class="inp" type="number" min="0" step="0.5" name="heavyOrderKg"></label>
@@ -441,6 +462,6 @@
     <div class="drawer" id="drawer"><div class="scrim" data-close></div><div class="panel" id="drawerBody"></div></div>
   </div>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script src="/admin.js?v=11"></script>
+  <script src="/admin.js?v=12"></script>
 </body>
 </html>

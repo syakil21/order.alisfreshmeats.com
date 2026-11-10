@@ -48,8 +48,9 @@ global.fetch = async (url, opts = {}) => {
       const [a, b] = body.stops.map((s) => ({ lat: +s.coordinates.lat, lng: +s.coordinates.lng }));
       const km = distanceKm(a, b) * 1.3;
       if (km > 80) return J(422, { errors: [{ id: 'ERR_OUT_OF_SERVICE_AREA' }] });
-      const total = ((body.serviceType === 'CAR' ? 16 : 6) + km * (body.serviceType === 'CAR' ? 1.4 : 0.9)).toFixed(1);
-      const q = { quotationId: String(Date.now()) + '01', scheduleAt: body.scheduleAt, expiresAt: new Date(Date.now() + 300000).toISOString(), serviceType: body.serviceType,
+      const tier = body.pricingTierCode === '2' ? '2' : '1';
+      const total = (((body.serviceType === 'CAR' ? 16 : 6) + km * (body.serviceType === 'CAR' ? 1.4 : 0.9)) * (tier === '2' ? 1.365 : 1)).toFixed(1);
+      const q = { quotationId: String(Date.now()) + String(Math.random()).slice(2, 6), pricingTierCode: tier, scheduleAt: body.scheduleAt, expiresAt: new Date(Date.now() + 300000).toISOString(), serviceType: body.serviceType,
         priceBreakdown: { total, currency: 'MYR' }, distance: { value: String(Math.round(km * 1000)), unit: 'm' },
         stops: body.stops.map((s, i) => ({ ...s, stopId: `stop${Date.now()}${i}` })) };
       mock.quotes.set(q.quotationId, q);
@@ -60,7 +61,7 @@ global.fetch = async (url, opts = {}) => {
       if (!q) return J(422, { errors: [{ id: 'ERR_INVALID_QUOTATION_ID' }] });
       if (!/^\+60\d{8,10}$/.test(body.sender.phone) || !/^\+60\d{8,10}$/.test(body.recipients[0].phone)) return J(422, { errors: [{ id: 'ERR_INVALID_PHONE_NUMBER' }] });
       const id = String(3000000000000000000n + BigInt(mock.llm.size + 1));
-      const o = { orderId: id, quotationId: q.quotationId, status: 'ASSIGNING_DRIVER', driverId: '', shareLink: `https://share.sandbox.lalamove.com/?MY${id}`, priceBreakdown: q.priceBreakdown, stops: q.stops, remarks: body.recipients[0].remarks, metadata: body.metadata };
+      const o = { orderId: id, quotationId: q.quotationId, tier: q.pricingTierCode, status: 'ASSIGNING_DRIVER', driverId: '', shareLink: `https://share.sandbox.lalamove.com/?MY${id}`, priceBreakdown: q.priceBreakdown, stops: q.stops, remarks: body.recipients[0].remarks, metadata: body.metadata };
       mock.llm.set(id, o);
       return J(201, { data: o });
     }
@@ -159,7 +160,7 @@ const server = http.createServer(async (req, res) => {
   try {
     if ((m = u.pathname.match(/^\/__mock\/billplz\/(\w+)(?:\/(pay|fail))?$/))) return await mockBillplzPage(req, res, m[1], m[2]);
     if ((m = u.pathname.match(/^\/__mock\/lalamove\/advance\/(\d+)$/))) return await mockAdvance(req, res, m[1]);
-    if (u.pathname === '/__mock/calls') { res.setHeader('Content-Type', 'application/json'); return res.end(JSON.stringify({ calls: mock.calls, llm: [...mock.llm.values()].map((o) => ({ orderId: o.orderId, status: o.status, remarks: o.remarks, metadata: o.metadata, priorityFee: o.priorityFee || '', changedDriver: o.changedDriver || '', driverId: o.driverId })) })); }
+    if (u.pathname === '/__mock/calls') { res.setHeader('Content-Type', 'application/json'); return res.end(JSON.stringify({ calls: mock.calls, llm: [...mock.llm.values()].map((o) => ({ orderId: o.orderId, status: o.status, remarks: o.remarks, metadata: o.metadata, tier: o.tier, priorityFee: o.priorityFee || '', changedDriver: o.changedDriver || '', driverId: o.driverId })) })); }
     if ((m = u.pathname.match(/^\/__mock\/lalamove\/expire\/(\d+)$/))) { const o = mock.llm.get(m[1]); if (o) o.status = 'EXPIRED'; res.setHeader('Content-Type', 'application/json'); return res.end(JSON.stringify({ status: o?.status })); }
     if ((m = u.pathname.match(/^\/s\/([\w-]+)$/i))) { req.url = `/api/s?no=${m[1]}`; return await require(path.join(__dirname, '..', 'api', 's.js'))(req, res); }
     if ((m = u.pathname.match(/^\/api\/([\w-]+)$/))) {

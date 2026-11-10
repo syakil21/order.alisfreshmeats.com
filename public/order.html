@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Oswald:wght@500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/styles.css?v=11">
+  <link rel="stylesheet" href="/styles.css?v=12">
 </head>
 <body>
   <header class="top">
@@ -24,7 +24,7 @@
     </div>
   </header>
   <main class="wrap" id="root"><div class="spinner" aria-label="Loading"></div></main>
-  <script src="/app.js?v=11"></script>
+  <script src="/app.js?v=12"></script>
   <script>
   (() => {
     const $ = (s) => document.querySelector(s);
@@ -80,7 +80,7 @@
         </ol>`;
         if (o.shop && !done) body += `<div class="shopcard"><b>Collect at Ali's Fresh Meats ${esc(o.shop.name)}</b>${esc(o.shop.address)}<br>Show order number <b style="display:inline">${esc(o.no)}</b> at the counter.</div>${o.shop.lat ? `<a class="bigbtn alt" href="https://maps.google.com/?q=${encodeURIComponent(o.shop.lat + ',' + o.shop.lng)}" target="_blank" rel="noopener">Directions to the shop</a>` : ''}`;
       } else {
-        head = `<h2>${o.stage === 'delivered' ? 'Delivered. Enjoy!' : 'Thank you, ' + esc(o.name.split(' ')[0]) + '!'}</h2><p class="sub">Order ${esc(o.no)} · paid ${rm(o.totalSen)}${o.deliveryOption === 'priority' ? ' · priority delivery' : o.deliveryOption === 'saver' ? ' · saver delivery' : ''}</p>`;
+        head = `<h2>${o.stage === 'delivered' ? 'Delivered. Enjoy!' : 'Thank you, ' + esc(o.name.split(' ')[0]) + '!'}</h2><p class="sub">Order ${esc(o.no)} · paid ${rm(o.totalSen)}${o.deliveryOption === 'priority' ? ' · priority delivery' : o.deliveryOption === 'saver' ? ' · pooling delivery' : ''}</p>`;
         body = `<ol class="steps">
           ${step('preparing', 'Payment received', `We're cutting and packing your order at ${esc(o.branchName)}`)}
           ${step('finding_driver', 'Finding a Lalamove driver', o.pickupAt ? `Driver collects around ${time(o.pickupAt)}` : '')}

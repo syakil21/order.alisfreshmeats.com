@@ -94,14 +94,16 @@ When everything works, switch Billplz and Lalamove to live keys (steps 4.5 and 5
 ---
 
 ## Day to day
-The dashboard (`/admin.html`) works like a food-delivery merchant app. On a phone, open it in Chrome (Android) or Safari (iPhone → Share → Add to Home Screen) to install it as **Ali's Staff**.
+The dashboard (`/admin.html`) works like a food-delivery merchant app. Log in with your name and password (the owner passcode `ADMIN_PASSCODE` works with any name and is always super admin). On a phone, open it in Chrome (Android) or Safari (iPhone → Share → Add to Home Screen) to install it as **Ali's Staff**.
 - **Home**: the big switch turns online ordering on/off. **Busy? Pause** stops orders for 30 min, 1 hour or the rest of the day and reopens by itself.
 - Today's sales, orders and average order sit under the switch.
 - The order board has tabs: **Preparing**, **Ready / on the way**, **Needs attention**, **Later pickups**, **Done today**, **Checking out** (not paid yet) and **All orders**. Tap a card for full details.
 - Card buttons: **Ready for pickup** (the customer gets a notification), **Collected**, **Packed**, **Add tip**, **Change driver**, **Rebook**, **Reprint**.
 - Click **Order sound** once so new paid orders chime. **New-order alerts on this phone** sends a phone notification for every paid order, even when the dashboard is closed.
 - Scanning the **QR code on a label** opens that order.
-- **Menu**: switch an item off when it's sold out (saves at once). Tap an item to change its price, photo, cutting choices or **Max per order**.
+- **Menu**: switch an item off when it's sold out (saves at once). Tap the **stock tag** to enter how many you have. Super admins tap an item to change its price, photo or cutting choices.
+- **Staff** (super admin): give each person their own login. **Staff** can see orders, print, tip / change driver / cancel / rebook Lalamove, call or WhatsApp customers, and update sold-out and stock. **Super admin** can also edit and delete orders, change prices and settings, and see Insights, Customers, Promotions and Activity. Every change is logged with the person's name.
+- **Edit / delete an order** (super admin): open the order → **Edit order** (customer, address, pickup time, quantities, cutting) or **Delete order…** (for test orders). A deleted order leaves orders and sales, puts stock and points back, and stays under the **Deleted** tab and in Activity.
 - **Insights**: sales, orders, average order, customers, sales by hour or day, best sellers, branches, delivery vs pickup, Lalamove cost vs what customers paid, discounts and points. Choose Today, Last 7 days, This month, Last month, Last 30 days or Custom.
 - **Customers**: members with their points (± Points to give or remove), special % discounts by phone, password reset.
 - **Promotions**: send a notification to every phone that turned on deal alerts. Coupons live here too.
@@ -119,8 +121,8 @@ The dashboard (`/admin.html`) works like a food-delivery merchant app. On a phon
 | Need to cancel a paid order | Open it → **Cancel order…**, then refund the customer in Billplz or by bank transfer. Points are returned automatically. |
 
 ## Notes
-- Delivery fee: the customer pays the Lalamove price quoted at checkout (+ RM5 for Priority). Lalamove is re-quoted when it's booked after payment, so there can be a small difference. **Settings → Delivery options → Delivery buffer** adds a fixed RM to every delivery to cover price changes and the odd rebook. **Insights** shows what customers paid vs what Lalamove cost.
-- **Saver (pooling)**: Lalamove's API doesn't offer pooling to every account. Ask your Lalamove account manager to turn it on for the API and give you the service type key, then tick **Offer Saver** and enter the key. Until then customers see Standard and Priority only.
+- Delivery fee: the customer pays the Lalamove price quoted at checkout (Regular or Priority). Lalamove is re-quoted when it's booked after payment, so there can be a small difference. **Settings → Delivery options → Delivery buffer** adds a fixed RM to every delivery to cover price changes and the odd rebook. **Insights** shows what customers paid vs what Lalamove cost.
+- **Pooling**: Lalamove's API supports Regular and Priority but not Pooling. Ask your Lalamove account manager whether they can turn it on for your API account and give you the service type, then tick **Offer Pooling** and enter it. Until then customers see Priority and Regular.
 - Customers pay for the weight they ordered. The checkout note tells them final weight may vary slightly. You can edit that text in Settings.
 - Customer details are kept for order handling only. Mention online orders in your privacy notice (PDPA).
 
@@ -176,11 +178,11 @@ After entering your real shop coordinates, check the radius values and adjust if
 - Lamb chop shoulder slices offer number of pieces or slice thickness (0.5, 1, 1.5 inch, or their own).
 - Edit the lists under **Settings → Cutting choices**.
 
-**Max per order:** head 2 sets, feet 2 sets, brain 4 pcs, spleen 4 pcs, liver 2 kg, tripe 2 kg, lamb shank 4 kg. Change them in Menu (0 = no limit).
+**Stock (inventory):** head, feet, brain, spleen, liver, tripe and lamb shank show a **+ Stock** tag in Menu. Enter how many you have; customers can't order more than that, the shop shows "Only 3 left" and then "Sold out". Stock goes down when an order is paid and back up if it's cancelled, deleted or edited down. Leave it empty to stop counting. Any other item can be counted from its edit page.
 
 **Editing at checkout:** each cart line has **Edit cut** and **Remove**, plus +/−.
 
-**Delivery options:** Standard, and Priority (+RM5, sent to Lalamove as a priority fee so a driver accepts faster). Saver appears only once Lalamove enables pooling (see Notes).
+**Delivery options:** the same as the Lalamove app. **Priority** uses Lalamove's own Priority price (booked as Priority, faster driver matching) and **Regular** the normal price. **Pooling** appears only once Lalamove enables it for your API account (see Notes).
 
 **Self pickup:** the customer picks a branch and a time slot (every 30 minutes, today and tomorrow, from prep time onwards). No Lalamove is booked. The label says SELF PICKUP with the time. Mark **Ready for pickup** and the customer gets a notification. Change slots under **Settings → Self pickup**.
 

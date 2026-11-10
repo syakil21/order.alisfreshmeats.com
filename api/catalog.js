@@ -6,7 +6,7 @@ const { send, handler } = require('../lib/http');
 const { shopOpen, usableBranches } = require('../lib/util');
 
 module.exports = handler(async (req, res) => {
-  const [settings, products] = await Promise.all([store.getSettings(), store.getProducts()]);
+  const [settings, products] = await Promise.all([store.getSettings(), store.getProducts().then(store.withStock)]);
   const status = shopOpen(settings);
   const welcome = await members.welcomeStatus(settings, null);
   let vapidKey = '';
@@ -20,7 +20,7 @@ module.exports = handler(async (req, res) => {
     deliveryReady: usableBranches(settings).length > 0,
     branches: usableBranches(settings).map((b) => b.name),
     pickup: pickupBranches.length ? { branches: pickupBranches.map((b) => ({ id: b.id, name: b.name, address: b.address, lat: b.lat, lng: b.lng, phone: b.phone || '' })) } : null,
-    priorityFee: settings.priority?.enabled ? Number(settings.priority.fee) || 0 : 0,
+    priority: !!settings.priority?.enabled,
     loyalty: L.enabled ? { earnPerRM: Number(L.earnPerRM) || 0, redeemPoints: Number(L.redeemPoints) || 100, redeemValue: Number(L.redeemValue) || 0 } : null,
     mapsKey: process.env.GOOGLE_MAPS_API_KEY || '',
     vapidKey,
@@ -29,8 +29,8 @@ module.exports = handler(async (req, res) => {
     products: products
       .filter((p) => p.available)
       .sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0))
-      .map(({ id, category, name, note, price, unit, step, min, cuts, cutModes, cooking, maxQty, image }) => ({
-        id, category, name, note, price, unit, step, min, cuts: !!cuts, cutModes: cutModes || [], cooking: !!cooking, maxQty: Number(maxQty) || 0,
+      .map(({ id, category, name, note, price, unit, step, min, cuts, cutModes, cooking, stock, image }) => ({
+        id, category, name, note, price, unit, step, min, cuts: !!cuts, cutModes: cutModes || [], cooking: !!cooking, stock: stock === null ? null : Math.max(0, stock),
         image: image ? `/api/image?id=${image}` : '',
       })),
   });

@@ -47,11 +47,12 @@
   }
   // most of a product the customer can still add (max per order), not counting the line being edited
   function roomFor(p, exceptKey) {
-    if (!p.maxQty) return 50;
+    if (p.stock == null) return 50;
     const other = cart.filter((l) => l.productId === p.id && l.key !== exceptKey).reduce((s, l) => s + l.qty, 0);
-    return Math.max(0, Math.round((p.maxQty - other) * 100) / 100);
+    return Math.max(0, Math.round((p.stock - other) * 100) / 100);
   }
-  const maxText = (p) => (p.maxQty ? `Max ${qtyText(p.maxQty, p.unit)} per order` : '');
+  const soldOut = (p) => p.stock != null && p.stock < (Number(p.min) || Number(p.step) || 1) - 1e-9;
+  const maxText = (p) => (p.stock == null ? '' : soldOut(p) ? 'Sold out' : `Only ${qtyText(p.stock, p.unit)} left`);
   // returns the amount now in that cart line (may be less than asked when the max per order is reached)
   function addToCart(productId, qty, cut, replaceKey) {
     const p = products[productId];
@@ -122,7 +123,7 @@
               ${p.note ? `<div class="note">${esc(p.note)}</div>` : ''}
               <div class="price">RM ${Number(p.price).toFixed(2)}<small>${unitText(p.unit)}</small></div>
               ${p.cuts ? '<div class="cuttag">✂ Choose your cut</div>' : ''}
-              ${p.maxQty ? `<div class="note">${esc(maxText(p))}</div>` : ''}
+              ${p.stock != null && (soldOut(p) || p.stock <= 5) ? `<div class="left ${soldOut(p) ? 'out' : ''}">${esc(maxText(p))}</div>` : ''}
             </div>
             <div class="ctl"></div>
           </div>`).join('')}
@@ -147,6 +148,8 @@
   function renderCtl(id) {
     const el = document.querySelector(`.item[data-id="${CSS.escape(id)}"] .ctl`); const p = products[id];
     if (!el || !p) return;
+    el.closest('.item').classList.toggle('soldout', soldOut(p));
+    if (soldOut(p) && !productQty(id)) { el.innerHTML = '<span class="soldtag">Sold out</span>'; return; }
     if (p.cuts) {
       const q = productQty(id);
       el.innerHTML = `<button class="add" data-open="${esc(id)}">Add</button>${q ? `<div class="incart">${qtyText(Math.round(q * 100) / 100, p.unit)} in cart</div>` : ''}`;
@@ -197,7 +200,7 @@
       if (cut.by === 'thickness') { if (inList(c.thickness, cut.thickness)) item.thickness = cut.thickness; else { item.thickness = 'custom'; item.thicknessCustom = cut.thickness; } }
     } else {
       const room = roomFor(p);
-      if (p.maxQty && room < item.qty) { item.full = true; }
+      if (p.stock != null && room < item.qty) { item.full = true; }
     }
     renderItem();
     $('#itemSheet').classList.add('show'); document.body.style.overflow = 'hidden';
@@ -243,7 +246,7 @@
         ${p.note ? `<p class="muted">${esc(p.note)}</p>` : ''}
         <div class="iprice">RM ${Number(p.price).toFixed(2)}<small>${unitText(p.unit)}</small></div>
         <div class="qtyrow"><span>Amount</span><div class="stepper"><button data-iq="-1" aria-label="Less">−</button><span>${qtyText(item.qty, p.unit)}</span><button data-iq="1" aria-label="More" ${item.qty + (Number(p.step) || 1) > room + 1e-9 ? 'disabled' : ''}>+</button></div></div>
-        ${p.maxQty ? `<div class="capnote">${esc(maxText(p))}${room < p.maxQty && !item.editKey ? ` · ${qtyText(Math.max(0, room), p.unit)} more allowed` : ''}</div>` : ''}
+        ${p.stock != null ? `<div class="capnote">${esc(maxText(p))}${room < p.stock && !item.editKey ? ` · ${qtyText(Math.max(0, room), p.unit)} more can be added` : ''}</div>` : ''}
       </div>
       ${cutHTML}`;
     const bind = (id, key) => { const el = $(id); if (el) { el.value = item[key]; el.addEventListener('input', () => { item[key] = el.value; }); } };
@@ -251,7 +254,7 @@
     const full = room < (Number(p.min) || Number(p.step) || 1) - 1e-9;
     const btn = $('#itemAdd');
     btn.disabled = full;
-    btn.textContent = full ? `Maximum already in your cart` : `${item.editKey ? 'Update item' : 'Add to cart'} · ${rm(Math.round(p.price * 100 * item.qty))}`;
+    btn.textContent = full ? (soldOut(p) ? 'Sold out' : 'All remaining stock is in your cart') : `${item.editKey ? 'Update item' : 'Add to cart'} · ${rm(Math.round(p.price * 100 * item.qty))}`;
   }
   $('#itemBody').addEventListener('click', (e) => {
     if (!item) return;

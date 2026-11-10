@@ -6,7 +6,7 @@ const path = require('path');
 
 const PUBLIC = path.join(__dirname, 'public');
 const API = path.join(__dirname, 'api');
-const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.json': 'application/json' };
+const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.jpg': 'image/jpeg', '.webp': 'image/webp' };
 const handlers = {};
 for (const f of fs.readdirSync(API)) if (f.endsWith('.js')) handlers[f.slice(0, -3)] = require(path.join(API, f));
 
@@ -29,7 +29,8 @@ const server = http.createServer(async (req, res) => {
   fs.stat(file, (err, st) => {
     if (err || !st.isFile()) { res.statusCode = 404; res.setHeader('Content-Type', 'text/html'); return res.end('<p>Page not found. <a href="/">Go to the shop</a></p>'); }
     res.setHeader('Content-Type', TYPES[path.extname(file)] || 'application/octet-stream');
-    res.setHeader('Cache-Control', path.extname(file) === '.html' ? 'no-cache' : 'public, max-age=3600');
+    const fresh = ['.html', '.webmanifest'].includes(path.extname(file)) || path.basename(file) === 'sw.js';
+    res.setHeader('Cache-Control', fresh ? 'no-cache' : 'public, max-age=3600');
     fs.createReadStream(file).pipe(res);
   });
 });

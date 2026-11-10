@@ -62,8 +62,15 @@
     if (w?.eligible) perks.push(`<div class="offerbox"><b>Your RM${w.amount} new member offer is ready.</b> It comes off your first order at checkout${w.minSpend ? ` (min. spend RM${w.minSpend})` : ''}.</div>`);
     else if (w && m.welcomeUsed) perks.push('<p class="muted">You have used your new member offer. Thank you!</p>');
     if (data.discountPct) perks.push(`<div class="offerbox"><b>${data.discountPct}% regular customer discount</b> on every order.</div>`);
+    const L = data.loyalty;
+    if (L) {
+      const blocks = Math.floor(L.points / L.redeemPoints);
+      perks.push(`<div class="pointscard"><div class="pc-num">${L.points}<span>points</span></div><div class="pc-text">${blocks ? `Worth <b>RM${(blocks * L.redeemValue).toFixed(2)}</b> off your next order.` : `${L.redeemPoints - (L.points % L.redeemPoints)} more points to get RM${L.redeemValue} off.`}<br><span class="muted">Earn ${L.earnPerRM} point${L.earnPerRM === 1 ? '' : 's'} per RM1 spent. ${L.redeemPoints} points = RM${L.redeemValue} off (up to ${L.maxPct}% of your meat total).</span></div></div>`
+        + (L.log.length ? `<details class="pc-log"><summary>Points history</summary>${L.log.map((x) => `<div><span>${fmtDate(x.at)} · ${esc(x.reason)}${x.orderNo ? ` ${esc(x.orderNo)}` : ''}</span><b class="${x.delta < 0 ? 'neg' : 'pos'}">${x.delta > 0 ? '+' : ''}${x.delta}</b></div>`).join('')}</details>` : ''));
+    }
     perks.push(`<p class="muted">Member since ${new Date(m.createdAt).toLocaleDateString('en-MY', { timeZone: 'Asia/Kuala_Lumpur', month: 'long', year: 'numeric' })}</p>`);
     $('#perks').innerHTML = perks.join('');
+    renderNotify();
     const f = $('#profileForm');
     f.name.value = m.name; f.phone.value = pretty(m.phone); f.email.value = m.email || '';
     renderAddrs();
@@ -129,15 +136,42 @@
     } catch (err) { toast(err.message); }
   });
 
+  // ---------- notifications ----------
+  function renderNotify() {
+    const box = $('#notifyBox'); if (!box || !window.AFM) return;
+    const sup = AFM.push.support();
+    if (sup === 'unsupported') { box.innerHTML = '<p class="muted">This browser does not support notifications.</p>'; return; }
+    if (sup === 'ios-install') { box.innerHTML = '<p class="muted">On iPhone, add this app to your Home Screen first (Share → Add to Home Screen), then open it from there to turn on notifications.</p>'; return; }
+    const on = AFM.push.permission() === 'granted' && !!AFM.push.id();
+    box.innerHTML = `<label class="check"><input type="checkbox" id="nOrders" ${on ? 'checked' : ''}> Order updates (driver found, on the way, delivered)</label>
+      <label class="check"><input type="checkbox" id="nPromos" ${AFM.push.promosOn() ? 'checked' : ''}> Promotions and special offers</label>`;
+    const apply = async () => {
+      const orders = $('#nOrders').checked, promos = $('#nPromos').checked;
+      try {
+        if (!orders && !promos) { await AFM.push.disable(); toast('Notifications turned off on this phone.'); }
+        else { await AFM.push.enable({ promos, memberToken: token }); toast('Notifications are on for this phone.'); }
+      } catch (e) { toast(e.message); }
+      renderNotify();
+    };
+    $('#nOrders').addEventListener('change', apply); $('#nPromos').addEventListener('change', apply);
+  }
+
   // ---------- orders ----------
   async function loadOrders() {
     try {
       const { orders } = await api('orders');
-      $('#orders').innerHTML = orders.length ? orders.map((o) => `
-        <a class="order-row" href="${esc(o.link)}">
-          <div><b>${esc(o.no)}</b> <span class="muted">${fmtDate(o.createdAt)}</span><div class="muted ellipsis">${esc(o.items)}</div></div>
-          <div class="r"><b>${rm(o.totalSen)}</b><div class="muted">${esc(o.paid ? o.stageText : 'Not paid')}</div></div>
-        </a>`).join('') : '<p class="muted">No orders yet.</p>';
+      $('#orders').innerHTML = orders.length ? orders.map((o, i) => `
+        <div class="order-row">
+          <a href="${esc(o.link)}" class="or-main"><b>${esc(o.no)}</b> <span class="muted">${fmtDate(o.createdAt)}${o.fulfilment === 'pickup' ? ' · pickup' : ''}</span><div class="muted ellipsis">${esc(o.items)}</div></a>
+          <div class="r"><b>${rm(o.totalSen)}</b><div class="muted">${esc(o.paid ? o.stageText : 'Not paid')}</div>${o.paid ? `<button type="button" class="linkbtn" data-reorder="${i}">Order again</button>` : ''}</div>
+        </div>`).join('') : '<p class="muted">No orders yet.</p>';
+      $('#orders').onclick = (e) => {
+        const b = e.target.closest('[data-reorder]'); if (!b) return;
+        const o = orders[Number(b.dataset.reorder)];
+        const lines = o.reorder.map((l) => ({ key: l.productId + '|' + JSON.stringify(l.cut || null), productId: l.productId, qty: l.qty, cut: l.cut || null }));
+        try { localStorage.setItem('afm_cart2', JSON.stringify(lines)); } catch {}
+        location.href = '/#cart';
+      };
     } catch { $('#orders').innerHTML = '<p class="muted">Could not load your orders.</p>'; }
   }
 

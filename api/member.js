@@ -4,6 +4,7 @@ const store = require('../lib/store');
 const members = require('../lib/members');
 const { body, send, ip, handler, httpError } = require('../lib/http');
 const { stage } = require('../lib/stage');
+const activity = require('../lib/activity');
 
 async function me(m) {
   const [settings, customers] = await Promise.all([store.getSettings(), store.getCustomers()]);
@@ -12,6 +13,7 @@ async function me(m) {
     member: members.publicView(m),
     welcome: w.enabled ? { amount: w.amountSen / 100, minSpend: w.minSpendSen / 100, eligible: w.eligible, remaining: w.remaining, reason: w.eligible ? '' : w.reason } : null,
     discountPct: Number(customers[m.phone]?.discountPct) || 0,
+    loyalty: settings.loyalty?.enabled ? { points: m.points || 0, log: (m.pointsLog || []).slice(0, 20), earnPerRM: Number(settings.loyalty.earnPerRM) || 0, redeemPoints: Number(settings.loyalty.redeemPoints) || 100, redeemValue: Number(settings.loyalty.redeemValue) || 0, maxPct: Number(settings.loyalty.maxPct) || 0 } : null,
   };
 }
 
@@ -19,6 +21,7 @@ const open = {
   async signup(b, req) {
     if ((await db.incr(`rl:signup:${ip(req)}`, 3600)) > 10) throw httpError(429, 'Too many sign-ups from this connection. Please try again later.');
     const m = await members.create(b);
+    activity.log('member', `New member: ${m.name} (${m.phone})`);
     return { token: await members.startSession(m), ...(await me(m)) };
   },
   async login(b, req) {
@@ -53,6 +56,8 @@ const authed = {
       orders: orders.map((o) => ({
         no: o.no, createdAt: o.createdAt, totalSen: o.totalSen, paid: o.payment.status === 'paid', stageText: stage(o).text,
         items: o.items.map((i) => i.name).join(', '), link: `/order.html?id=${o.id}&t=${o.token}`,
+        fulfilment: o.fulfilment || 'delivery', pointsEarned: o.payment.status === 'paid' ? o.pointsEarned || 0 : 0,
+        reorder: o.items.map((i) => ({ productId: i.productId, qty: i.qty, cut: i.cut || null })),
       })),
     };
   },

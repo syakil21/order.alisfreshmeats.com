@@ -65,7 +65,21 @@ global.fetch = async (url, opts = {}) => {
       return J(201, { data: o });
     }
     let m;
-    if ((m = u.pathname.match(/^\/v3\/orders\/(\d+)\/drivers\/(\w+)$/))) return J(200, { data: { driverId: m[2], name: 'Ahmad Driver (demo)', phone: '+60111234567', plateNumber: '**C123*' } });
+    if ((m = u.pathname.match(/^\/v3\/orders\/(\d+)\/drivers\/(\w+)$/))) {
+      if (method === 'DELETE') {
+        const o = mock.llm.get(m[1]);
+        if (!o || o.status !== 'ON_GOING' || o.driverId !== m[2]) return J(422, { errors: [{ id: 'ERR_CHANGE_DRIVER_FORBIDDEN', message: 'Driver cannot be changed now' }] });
+        o.status = 'ASSIGNING_DRIVER'; o.driverId = ''; o.changedDriver = body?.reason; return J(204);
+      }
+      return J(200, { data: { driverId: m[2], name: 'Ahmad Driver (demo)', phone: '+60111234567', plateNumber: '**C123*' } });
+    }
+    if ((m = u.pathname.match(/^\/v3\/orders\/(\d+)\/priority-fee$/)) && method === 'POST') {
+      const o = mock.llm.get(m[1]);
+      if (!o || o.status !== 'ASSIGNING_DRIVER') return J(422, { errors: [{ id: 'ERR_PRIORITY_FEE_FORBIDDEN', message: 'Order is not looking for a driver' }] });
+      if (Number(body.priorityFee) <= Number(o.priorityFee || 0)) return J(422, { errors: [{ id: 'ERR_INVALID_PRIORITY_FEE', message: 'Priority fee must be higher than before' }] });
+      o.priorityFee = body.priorityFee; o.priceBreakdown = { ...o.priceBreakdown, priorityFee: body.priorityFee };
+      return J(200, { data: o });
+    }
     if ((m = u.pathname.match(/^\/v3\/orders\/(\d+)$/))) {
       const o = mock.llm.get(m[1]); if (!o) return J(404, { errors: [{ id: 'ERR_ORDER_NOT_FOUND' }] });
       if (method === 'DELETE') { if (!['ASSIGNING_DRIVER', 'ON_GOING'].includes(o.status)) return J(409, { message: 'ERR_CANCELLATION_FORBIDDEN' }); o.status = 'CANCELED'; return J(204); }
@@ -138,14 +152,15 @@ async function mockAdvance(req, res, id) {
 }
 
 // ---------------- server ----------------
-const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.svg': 'image/svg+xml', '.json': 'application/json' };
+const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.svg': 'image/svg+xml', '.json': 'application/json', '.webmanifest': 'application/manifest+json' };
 const server = http.createServer(async (req, res) => {
   const u = new URL(req.url, LOCAL);
   let m;
   try {
     if ((m = u.pathname.match(/^\/__mock\/billplz\/(\w+)(?:\/(pay|fail))?$/))) return await mockBillplzPage(req, res, m[1], m[2]);
     if ((m = u.pathname.match(/^\/__mock\/lalamove\/advance\/(\d+)$/))) return await mockAdvance(req, res, m[1]);
-    if (u.pathname === '/__mock/calls') { res.setHeader('Content-Type', 'application/json'); return res.end(JSON.stringify({ calls: mock.calls, llm: [...mock.llm.values()].map((o) => ({ orderId: o.orderId, status: o.status, remarks: o.remarks, metadata: o.metadata })) })); }
+    if (u.pathname === '/__mock/calls') { res.setHeader('Content-Type', 'application/json'); return res.end(JSON.stringify({ calls: mock.calls, llm: [...mock.llm.values()].map((o) => ({ orderId: o.orderId, status: o.status, remarks: o.remarks, metadata: o.metadata, priorityFee: o.priorityFee || '', changedDriver: o.changedDriver || '', driverId: o.driverId })) })); }
+    if ((m = u.pathname.match(/^\/__mock\/lalamove\/expire\/(\d+)$/))) { const o = mock.llm.get(m[1]); if (o) o.status = 'EXPIRED'; res.setHeader('Content-Type', 'application/json'); return res.end(JSON.stringify({ status: o?.status })); }
     if ((m = u.pathname.match(/^\/s\/([\w-]+)$/i))) { req.url = `/api/s?no=${m[1]}`; return await require(path.join(__dirname, '..', 'api', 's.js'))(req, res); }
     if ((m = u.pathname.match(/^\/api\/([\w-]+)$/))) {
       const file = path.join(__dirname, '..', 'api', `${m[1]}.js`);

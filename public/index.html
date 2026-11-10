@@ -6,11 +6,17 @@
   <title>Ali's Fresh Meats · Order Online</title>
   <meta name="description" content="Order fresh local lamb, imported mutton and lamb from Ali's Fresh Meats (since 1975). Cut the way you cook, pay online, delivered by Lalamove from Selayang and Brickfields.">
   <meta name="theme-color" content="#1b1917">
-  <link rel="icon" href="/logo.png">
+  <link rel="icon" href="/icons/favicon-32.png" sizes="32x32">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Ali's Meats">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Oswald:wght@500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/styles.css?v=11">
 </head>
 <body>
   <header class="top">
@@ -38,11 +44,12 @@
         <span class="chip" id="openChip">…</span>
         <span class="chip">Selayang · Brickfields</span>
         <span class="chip">Pay online · FPX &amp; cards</span>
-        <span class="chip">Delivered by Lalamove</span>
+        <span class="chip">Lalamove delivery or self pickup</span>
       </div>
       <p class="area" id="areaNote"></p>
       <div class="offer" id="offer" hidden></div>
       <a class="last-order" id="lastOrder" href="#">Track your last order →</a>
+      <button type="button" class="bell" id="bell" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><span id="bellText">Get deal alerts</span></button>
       <div class="notice" id="notice" hidden></div>
     </div>
   </main>
@@ -76,6 +83,40 @@
         <div id="lines"></div>
       </section>
 
+      <section id="fulfilSec">
+        <h4>How do you want it?</h4>
+        <div class="seg2" id="fulfilSeg">
+          <button type="button" data-ful="delivery" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="6" cy="17" r="2.5"/><circle cx="18" cy="17" r="2.5"/><path d="M8.5 17h7M3.5 17V7h10v10M13.5 10h4l3 4v3h-2"/></svg>Delivery</button>
+          <button type="button" data-ful="pickup"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 10h16l-1.5 10h-13z"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>Self pickup</button>
+        </div>
+      </section>
+
+      <section id="deliverySec">
+        <h4>Delivery address</h4>
+        <div class="saved-addrs" id="savedAddrs" hidden></div>
+        <div id="picker"></div>
+        <div class="row2" style="margin-top:12px">
+          <label class="f"><span>Unit / floor <i>(optional)</i></span><input class="inp" id="unit" placeholder="e.g. B-12-3"></label>
+          <label class="f"><span>Delivery notes <i>(optional)</i></span><input class="inp" id="notes" placeholder="e.g. Leave with guard"></label>
+        </div>
+        <div class="save-addr" id="saveAddrRow" hidden>
+          <label><input type="checkbox" id="saveAddr" checked> Save to my addresses as</label>
+          <input class="inp sm" id="saveAddrLabel" value="Home" maxlength="30">
+        </div>
+        <div class="speed" id="speed" hidden></div>
+      </section>
+
+      <section id="pickupSec" hidden>
+        <h4>Pick up from</h4>
+        <div class="opts" id="pickupBranches"></div>
+        <div class="shopcard" id="shopCard" hidden></div>
+        <h4 style="margin-top:16px">Pickup time</h4>
+        <div class="slotdays" id="slotDays"></div>
+        <div class="slots" id="slots"></div>
+        <p class="msg" id="pickupMsg"></p>
+        <label class="f" style="margin-top:12px"><span>Note for the shop <i>(optional)</i></span><input class="inp" id="pickupNotes" placeholder="e.g. I'll come by car"></label>
+      </section>
+
       <section>
         <h4>Your details</h4>
         <div class="loginbar" id="loginBar"></div>
@@ -89,23 +130,10 @@
       </section>
 
       <section>
-        <h4>Delivery address</h4>
-        <div class="saved-addrs" id="savedAddrs" hidden></div>
-        <div id="picker"></div>
-        <div class="row2" style="margin-top:12px">
-          <label class="f"><span>Unit / floor <i>(optional)</i></span><input class="inp" id="unit" placeholder="e.g. B-12-3"></label>
-          <label class="f"><span>Delivery notes <i>(optional)</i></span><input class="inp" id="notes" placeholder="e.g. Leave with guard"></label>
-        </div>
-        <div class="save-addr" id="saveAddrRow" hidden>
-          <label><input type="checkbox" id="saveAddr" checked> Save to my addresses as</label>
-          <input class="inp sm" id="saveAddrLabel" value="Home" maxlength="30">
-        </div>
-      </section>
-
-      <section>
-        <h4>Coupon code</h4>
-        <div class="coupon"><input class="inp" id="coupon" placeholder="Enter code" autocomplete="off"><button class="btn2" id="applyCoupon" type="button">Apply</button></div>
+        <h4>Discounts</h4>
+        <div class="coupon"><input class="inp" id="coupon" placeholder="Coupon code" autocomplete="off"><button class="btn2" id="applyCoupon" type="button">Apply</button></div>
         <div class="msg" id="couponMsg"></div>
+        <div id="pointsBox" style="margin-top:12px"></div>
       </section>
 
       <section>
@@ -121,7 +149,8 @@
     </div>
   </div>
   <div class="toast" id="toast"></div>
-  <script src="/addr.js"></script>
-  <script src="/shop.js"></script>
+  <script src="/app.js?v=11"></script>
+  <script src="/addr.js?v=11"></script>
+  <script src="/shop.js?v=11"></script>
 </body>
 </html>

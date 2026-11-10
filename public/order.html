@@ -6,11 +6,14 @@
   <title>Your order · Ali's Fresh Meats</title>
   <meta name="theme-color" content="#1b1917">
   <meta name="robots" content="noindex">
-  <link rel="icon" href="/logo.png">
+  <link rel="icon" href="/icons/favicon-32.png" sizes="32x32">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Oswald:wght@500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/styles.css?v=11">
 </head>
 <body>
   <header class="top">
@@ -21,6 +24,7 @@
     </div>
   </header>
   <main class="wrap" id="root"><div class="spinner" aria-label="Loading"></div></main>
+  <script src="/app.js?v=11"></script>
   <script>
   (() => {
     const $ = (s) => document.querySelector(s);
@@ -28,9 +32,12 @@
     const rm = (sen) => 'RM ' + (Number(sen || 0) / 100).toFixed(2);
     const qtyText = (q, u) => (u === 'kg' ? `${q} kg` : u === 'set' ? `${q} ${q > 1 ? 'sets' : 'set'}` : `${q} ${q > 1 ? 'pcs' : 'pc'}`);
     const time = (iso) => new Date(iso).toLocaleTimeString('en-MY', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kuala_Lumpur' });
+    const dayTime = (iso) => { const d = new Date(iso); const k = (x) => x.toLocaleDateString('en-CA', { timeZone: 'Asia/Kuala_Lumpur' }); const today = k(new Date()); const tmr = k(new Date(Date.now() + 86400000)); return `${k(d) === today ? 'today' : k(d) === tmr ? 'tomorrow' : d.toLocaleDateString('en-MY', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Asia/Kuala_Lumpur' })}, ${time(iso)}`; };
     const p = new URLSearchParams(location.search);
     const id = p.get('id'), t = p.get('t'), unpaidReturn = p.get('unpaid') === '1';
     const ORDER = ['awaiting_payment', 'preparing', 'finding_driver', 'driver_assigned', 'on_the_way', 'delivered'];
+    const PICKUP = ['awaiting_payment', 'preparing', 'ready', 'collected'];
+    const FINAL = ['delivered', 'collected', 'cancelled'];
     let timer;
 
     async function load() {
@@ -48,10 +55,12 @@
         if (last && last.id === id) { localStorage.setItem('afm_last', JSON.stringify({ id, t, no: o.no })); if (o.paid) { localStorage.removeItem('afm_cart'); localStorage.removeItem('afm_cart2'); } }
       } catch {}
 
-      const at = ORDER.indexOf(o.stage);
+      const pickup = o.fulfilment === 'pickup';
+      const seq = pickup ? PICKUP : ORDER;
+      const at = seq.indexOf(o.stage);
       const step = (key, label, sub) => {
-        const i = ORDER.indexOf(key);
-        const cls = o.stage === 'delivered' || i < at ? 'done' : i === at ? 'now' : '';
+        const i = seq.indexOf(key);
+        const cls = FINAL.includes(o.stage) || i < at ? 'done' : i === at ? 'now' : '';
         return `<li class="${cls}">${label}${sub ? `<small>${sub}</small>` : ''}</li>`;
       };
       let head, body = '';
@@ -59,26 +68,51 @@
         head = `<h2>${unpaidReturn ? 'Payment not completed' : 'Waiting for payment'}</h2><p class="sub">Order ${esc(o.no)} is saved. Complete payment to confirm it.</p>`;
         if (o.payUrl) body = `<a class="bigbtn" href="${esc(o.payUrl)}">Complete payment · ${rm(o.totalSen)}</a>`;
         body += `<a class="bigbtn alt" href="/#cart">Change my order</a>`;
+      } else if (o.stage === 'cancelled') {
+        head = `<h2>Order cancelled</h2><p class="sub">Order ${esc(o.no)}. Please WhatsApp us if you have any questions about your refund.</p>`;
+      } else if (pickup) {
+        const done = o.stage === 'collected';
+        head = `<h2>${done ? 'Collected. Enjoy!' : o.stage === 'ready' ? 'Ready for collection' : 'Thank you, ' + esc(o.name.split(' ')[0]) + '!'}</h2><p class="sub">Order ${esc(o.no)} · paid ${rm(o.totalSen)} · self pickup</p>`;
+        body = `<ol class="steps">
+          ${step('preparing', 'Payment received', `We're cutting and packing your order`)}
+          ${step('ready', 'Ready for collection', o.pickupAt ? `Your pickup time: ${dayTime(o.pickupAt)}` : '')}
+          ${step('collected', 'Collected', '')}
+        </ol>`;
+        if (o.shop && !done) body += `<div class="shopcard"><b>Collect at Ali's Fresh Meats ${esc(o.shop.name)}</b>${esc(o.shop.address)}<br>Show order number <b style="display:inline">${esc(o.no)}</b> at the counter.</div>${o.shop.lat ? `<a class="bigbtn alt" href="https://maps.google.com/?q=${encodeURIComponent(o.shop.lat + ',' + o.shop.lng)}" target="_blank" rel="noopener">Directions to the shop</a>` : ''}`;
       } else {
-        head = `<h2>${o.stage === 'delivered' ? 'Delivered. Enjoy!' : 'Thank you, ' + esc(o.name.split(' ')[0]) + '!'}</h2><p class="sub">Order ${esc(o.no)} · paid ${rm(o.totalSen)}</p>`;
+        head = `<h2>${o.stage === 'delivered' ? 'Delivered. Enjoy!' : 'Thank you, ' + esc(o.name.split(' ')[0]) + '!'}</h2><p class="sub">Order ${esc(o.no)} · paid ${rm(o.totalSen)}${o.deliveryOption === 'priority' ? ' · priority delivery' : o.deliveryOption === 'saver' ? ' · saver delivery' : ''}</p>`;
         body = `<ol class="steps">
           ${step('preparing', 'Payment received', `We're cutting and packing your order at ${esc(o.branchName)}`)}
-          ${step('finding_driver', 'Finding a Lalamove driver', o.pickupAt ? `Pickup around ${time(o.pickupAt)}` : '')}
+          ${step('finding_driver', 'Finding a Lalamove driver', o.pickupAt ? `Driver collects around ${time(o.pickupAt)}` : '')}
           ${step('driver_assigned', 'Driver on the way to our shop', o.driver ? `${esc(o.driver.name)}${o.driver.plate ? ' · ' + esc(o.driver.plate) : ''}` : '')}
           ${step('on_the_way', 'Out for delivery', '')}
           ${step('delivered', 'Delivered', esc(o.address))}
         </ol>`;
         if (o.trackUrl) body += `<a class="bigbtn" href="${esc(o.trackUrl)}" target="_blank" rel="noopener">Track driver live</a>`;
       }
+      if (o.paid && !FINAL.includes(o.stage) && window.AFM && AFM.push.support() !== 'unsupported' && !(o.notify && AFM.push.permission() === 'granted')) {
+        body += `<button type="button" class="bigbtn alt" id="notifyBtn">🔔 Notify me when my order moves</button>`;
+      }
+      if (o.pointsEarned && o.paid) body += `<p class="earn">+${o.pointsEarned} points added to your account.</p>`;
       const items = `<table class="sum" style="margin-top:18px">
         ${o.items.map((i) => `<tr><td>${esc(i.name)} <span class="muted">× ${qtyText(i.qty, i.unit)}</span>${i.cutText ? `<div class="muted" style="font-size:12.5px">✂ ${esc(i.cutText)}</div>` : ''}</td><td>${rm(i.lineSen)}</td></tr>`).join('')}
         ${o.discounts.map((d) => `<tr class="disc"><td>${esc(d.label)}</td><td>− ${rm(d.sen)}</td></tr>`).join('')}
-        <tr><td>Delivery</td><td>${rm(o.deliverySen)}</td></tr>
+        ${o.pointsSen ? `<tr class="disc"><td>Points (${o.pointsUsed})</td><td>− ${rm(o.pointsSen)}</td></tr>` : ''}
+        <tr><td>${o.fulfilment === 'pickup' ? 'Self pickup' : 'Delivery'}</td><td>${o.fulfilment === 'pickup' ? 'Free' : rm(o.deliverySen)}</td></tr>
         <tr class="tot"><td>Total</td><td>${rm(o.totalSen)}</td></tr></table>`;
       $('#root').innerHTML = `<div class="status-card">${head}${body}${items}</div>
-        <p class="muted" style="text-align:center;color:#b9ae9c">Keep this page to check your delivery. <a href="/">Order again</a></p>`;
+        <p class="muted" style="text-align:center;color:#b9ae9c">Keep this page to check your order. <a href="/">Order again</a></p>`;
+      const nb = $('#notifyBtn');
+      if (nb) nb.onclick = async () => {
+        nb.disabled = true; nb.textContent = 'Turning on…';
+        try {
+          let member = null; try { member = JSON.parse(localStorage.getItem('afm_member') || 'null'); } catch {}
+          await AFM.push.enable({ orderId: id, token: t, memberToken: member || undefined });
+          nb.textContent = '✅ We’ll notify you on this phone';
+        } catch (e) { nb.disabled = false; nb.textContent = '🔔 Notify me when my order moves'; alert(e.message); }
+      };
       clearTimeout(timer);
-      if (o.stage !== 'delivered') timer = setTimeout(load, o.paid ? 15000 : 8000);
+      if (!FINAL.includes(o.stage)) timer = setTimeout(load, o.paid ? 15000 : 8000);
     }
     load();
   })();

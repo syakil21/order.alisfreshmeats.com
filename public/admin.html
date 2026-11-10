@@ -2,85 +2,230 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Orders · Ali's Fresh Meats</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Ali's Staff</title>
   <meta name="robots" content="noindex">
-  <link rel="icon" href="/logo.png">
+  <meta name="theme-color" content="#1e1b18">
+  <link rel="icon" href="/icons/favicon-32.png" sizes="32x32">
+  <link rel="manifest" href="/admin.webmanifest">
+  <link rel="apple-touch-icon" href="/icons/staff-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Ali's Staff">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Oswald:wght@500;600&display=swap" rel="stylesheet">
   <style>
-    :root { --bg:#f6f1e7; --card:#fff; --ink:#2a2118; --muted:#857560; --line:#e7dcc8; --brown:#5a3518; --gold:#f0bf4c; --red:#c62a1f; --green:#2e7d46; --amber:#a86a00; --blue:#2457a6; color-scheme: light; }
-    * { box-sizing: border-box; }
-    body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.45 'Archivo', system-ui, sans-serif; }
+    :root {
+      --bg:#f4f3f0; --card:#fff; --ink:#1e1b18; --ink2:#4a443d; --muted:#6f675d; --line:#e6e1d8; --soft:#f8f6f2;
+      --brand:#5a3518; --accent:#d42a1f; --gold:#f0bf4c;
+      --ok:#17824a; --ok-bg:#e3f4ea; --warn:#9a5b00; --warn-bg:#fff1d6; --bad:#c62a1f; --bad-bg:#fde4e1; --info:#2457a6; --info-bg:#e2ecfb;
+      --series-1:#2a78d6; --grid:#ece8e1;
+      --r:14px; color-scheme: light;
+    }
+    * { box-sizing:border-box; }
+    html, body { margin:0; }
+    body { background:var(--bg); color:var(--ink); font:15px/1.45 'Archivo', system-ui, -apple-system, sans-serif; -webkit-font-smoothing:antialiased; }
     button, input, select, textarea { font:inherit; color:inherit; }
     button { cursor:pointer; }
-    .bar { background:#1b1917; color:#f5ecd9; position:sticky; top:0; z-index:10; }
-    .bar .in { max-width:1200px; margin:0 auto; display:flex; align-items:center; gap:14px; padding:10px 16px; }
-    .bar img { width:54px; }
-    .bar h1 { font:600 18px 'Oswald', sans-serif; letter-spacing:.06em; text-transform:uppercase; margin:0; }
-    .nav { display:flex; gap:4px; margin-left:auto; flex-wrap:wrap; }
-    .nav button { background:transparent; border:0; color:#cfc4b2; padding:8px 12px; border-radius:999px; font-weight:600; font-size:14px; }
-    .nav button.on { background:var(--gold); color:#1b1917; }
-    main { max-width:1200px; margin:0 auto; padding:18px 16px 80px; }
-    .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:14px; }
-    h2 { font:600 20px 'Oswald', sans-serif; text-transform:uppercase; letter-spacing:.04em; margin:0 0 12px; }
-    h3 { font-size:14px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin:18px 0 8px; }
+    a { color:var(--info); }
+    .hidden { display:none !important; }
+
+    /* shell: sidebar on desktop, bottom nav on phones */
+    .shell { display:grid; grid-template-columns:232px 1fr; min-height:100vh; }
+    .side { background:var(--ink); color:#f3eee6; position:sticky; top:0; height:100vh; display:flex; flex-direction:column; padding:18px 12px; }
+    .side .brand { display:flex; align-items:center; gap:10px; padding:0 8px 18px; }
+    .side .brand img { width:52px; }
+    .side .brand b { font:600 16px 'Oswald', sans-serif; letter-spacing:.06em; text-transform:uppercase; display:block; }
+    .side .brand span { font-size:12px; color:#b8ad9e; }
+    .nav { display:flex; flex-direction:column; gap:2px; }
+    .nav button { display:flex; align-items:center; gap:12px; border:0; background:none; color:#d8cfc2; padding:11px 12px; border-radius:10px; font-weight:600; text-align:left; position:relative; }
+    .nav button svg { width:20px; height:20px; flex:none; }
+    .nav button.on { background:rgba(255,255,255,.1); color:#fff; }
+    .nav button .dot { margin-left:auto; min-width:20px; height:20px; border-radius:999px; background:var(--accent); color:#fff; font-size:11.5px; display:grid; place-items:center; padding:0 6px; }
+    .side .foot { margin-top:auto; font-size:12px; color:#9d9283; padding:8px; }
+    .side .foot button { background:none; border:0; color:#d8cfc2; padding:0; text-decoration:underline; }
+    .main { min-width:0; }
+    .topbar { display:none; }
+    .page { max-width:1180px; margin:0 auto; padding:22px 22px 100px; }
+    .ph { display:flex; align-items:center; gap:12px; margin:0 0 16px; flex-wrap:wrap; }
+    .ph h1 { margin:0; font:600 24px 'Oswald', sans-serif; letter-spacing:.03em; text-transform:uppercase; flex:1; }
+    .bnav { display:none; }
+    @media (max-width:860px) {
+      .shell { display:block; }
+      .side { display:none; }
+      .topbar { display:flex; align-items:center; gap:10px; position:sticky; top:0; z-index:20; background:var(--ink); color:#fff; padding:10px 14px; padding-top:calc(10px + env(safe-area-inset-top)); }
+      .topbar img { width:40px; }
+      .topbar b { font:600 16px 'Oswald', sans-serif; letter-spacing:.05em; text-transform:uppercase; flex:1; }
+      .page { padding:14px 14px 110px; }
+      .ph h1 { font-size:20px; }
+      .bnav { display:grid; grid-template-columns:repeat(5,1fr); position:fixed; left:0; right:0; bottom:0; z-index:25; background:#fff; border-top:1px solid var(--line); padding-bottom:env(safe-area-inset-bottom); }
+      .bnav button { border:0; background:none; padding:8px 2px 9px; display:flex; flex-direction:column; align-items:center; gap:2px; font-size:11px; font-weight:700; color:var(--muted); position:relative; }
+      .bnav button svg { width:22px; height:22px; }
+      .bnav button.on { color:var(--accent); }
+      .boardbar .scrollx { flex:1 1 100%; }
+      .boardbar #search { width:100% !important; }
+      .bnav .dot { position:absolute; top:4px; left:calc(50% + 6px); min-width:17px; height:17px; border-radius:999px; background:var(--accent); color:#fff; font-size:10.5px; display:grid; place-items:center; padding:0 4px; }
+    }
+
+    /* basics */
+    .card { background:var(--card); border:1px solid var(--line); border-radius:var(--r); padding:16px; margin-bottom:14px; }
+    .card > h2, .h2 { font-size:13px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); margin:0 0 12px; }
     .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
     .grow { flex:1; }
-    .btn { border:1.5px solid var(--ink); background:#fff; border-radius:10px; padding:8px 14px; font-weight:700; font-size:14px; }
-    .btn.pri { background:var(--ink); color:#fff; }
-    .btn.red { border-color:var(--red); color:var(--red); }
-    .btn.sm { padding:5px 10px; font-size:13px; }
+    .btn { border:1.5px solid var(--line); background:#fff; border-radius:10px; padding:9px 14px; font-weight:700; font-size:14px; white-space:nowrap; }
+    .btn:hover { border-color:#cfc6b8; }
+    .btn.pri { background:var(--ink); border-color:var(--ink); color:#fff; }
+    .btn.go { background:var(--ok); border-color:var(--ok); color:#fff; }
+    .btn.red { border-color:#f2c2bc; color:var(--bad); }
+    .btn.sm { padding:6px 11px; font-size:13px; border-radius:9px; }
     .btn:disabled { opacity:.5; cursor:not-allowed; }
     .inp, select.inp { padding:9px 11px; border:1.5px solid var(--line); border-radius:9px; background:#fff; min-width:0; }
-    .inp:focus { outline:none; border-color:var(--brown); }
-    label.f { display:block; font-size:13px; font-weight:600; color:#5c4a35; }
+    .inp:focus { outline:none; border-color:var(--brand); }
+    label.f { display:block; font-size:13px; font-weight:600; color:var(--ink2); }
     label.f .inp { display:block; width:100%; margin-top:4px; font-weight:400; color:var(--ink); }
     label.f small { display:block; font-weight:400; color:var(--muted); margin-top:3px; }
-    .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px; }
+    label.ck { display:flex; gap:8px; align-items:flex-start; font-size:14px; font-weight:600; }
+    label.ck small { display:block; font-weight:400; color:var(--muted); }
+    label.ck input { margin-top:3px; }
+    .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(210px, 1fr)); gap:12px; }
     .chips { display:flex; gap:6px; flex-wrap:wrap; }
-    .chip { border:1.5px solid var(--line); background:#fff; border-radius:999px; padding:6px 12px; font-weight:600; font-size:13px; }
+    .chip { border:1.5px solid var(--line); background:#fff; border-radius:999px; padding:7px 13px; font-weight:700; font-size:13px; white-space:nowrap; }
     .chip.on { background:var(--ink); border-color:var(--ink); color:#fff; }
-    .tag { display:inline-block; padding:2px 9px; border-radius:999px; font-size:12px; font-weight:700; white-space:nowrap; }
-    .t-pay { background:#eee6d8; color:#6d5a40; } .t-prep { background:#fff1cc; color:var(--amber); } .t-drv { background:#dfeafc; color:var(--blue); }
-    .t-done { background:#dcf2e3; color:var(--green); } .t-bad { background:#fde2df; color:var(--red); }
-    table.list { width:100%; border-collapse:collapse; }
-    table.list th { text-align:left; font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); padding:8px; border-bottom:1.5px solid var(--line); }
-    table.list td { padding:10px 8px; border-bottom:1px solid var(--line); vertical-align:middle; }
-    table.list tr.click { cursor:pointer; } table.list tr.click:hover td { background:#fbf7ef; }
-    table.list tr.new td { animation:flash 2s ease 3; }
-    @keyframes flash { 50% { background:#fff4cf; } }
-    .num { font-variant-numeric:tabular-nums; text-align:right; }
-    .warn { color:var(--red); font-weight:700; font-size:13px; }
+    .chip .n { display:inline-block; min-width:18px; margin-left:4px; padding:0 5px; border-radius:999px; background:var(--soft); color:var(--ink); font-size:11.5px; text-align:center; }
+    .chip.on .n { background:rgba(255,255,255,.2); color:#fff; }
+    .chip.alert .n { background:var(--accent); color:#fff; }
+    .scrollx { display:flex; gap:6px; overflow-x:auto; padding-bottom:4px; scrollbar-width:none; }
+    .scrollx::-webkit-scrollbar { display:none; }
+    .tag { display:inline-flex; align-items:center; gap:4px; padding:3px 9px; border-radius:999px; font-size:12px; font-weight:700; white-space:nowrap; }
+    .t-pay { background:var(--soft); color:var(--muted); } .t-prep { background:var(--warn-bg); color:var(--warn); } .t-drv { background:var(--info-bg); color:var(--info); }
+    .t-done { background:var(--ok-bg); color:var(--ok); } .t-bad { background:var(--bad-bg); color:var(--bad); } .t-dark { background:var(--ink); color:#fff; } .t-pick { background:#efe6fb; color:#5b3a9a; }
     .muted { color:var(--muted); font-size:13px; }
-    .drawer { position:fixed; inset:0; z-index:30; display:none; }
+    .ok { color:var(--ok); font-weight:700; } .bad { color:var(--bad); font-weight:700; }
+    .warn { color:var(--bad); font-weight:700; font-size:13px; }
+    table.list { width:100%; border-collapse:collapse; }
+    table.list th { text-align:left; font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); padding:8px; border-bottom:1.5px solid var(--line); white-space:nowrap; }
+    table.list td { padding:10px 8px; border-bottom:1px solid var(--line); vertical-align:middle; }
+    .num { font-variant-numeric:tabular-nums; text-align:right; }
+    .toast { position:fixed; left:50%; bottom:calc(84px + env(safe-area-inset-bottom)); transform:translateX(-50%); background:var(--ink); color:#fff; padding:11px 18px; border-radius:10px; z-index:80; display:none; max-width:92vw; box-shadow:0 8px 30px rgba(0,0,0,.25); }
+
+    /* login */
+    .login { max-width:360px; margin:12vh auto; text-align:center; padding:0 16px; }
+    .login img { width:120px; }
+
+    /* home: store switch */
+    .store { display:flex; align-items:center; gap:16px; padding:18px; border-radius:var(--r); background:var(--card); border:1px solid var(--line); margin-bottom:14px; flex-wrap:wrap; }
+    .store.open { background:linear-gradient(0deg, #fff, #fff), var(--ok-bg); border-color:#bfe3cd; box-shadow:inset 6px 0 0 var(--ok); }
+    .store.paused { box-shadow:inset 6px 0 0 var(--warn); }
+    .store.off { box-shadow:inset 6px 0 0 var(--bad); }
+    .store .st { flex:1; min-width:200px; }
+    .store .st b { display:block; font-size:18px; }
+    .store .st span { color:var(--muted); font-size:14px; }
+    .switch { position:relative; width:64px; height:36px; flex:none; }
+    .switch input { position:absolute; inset:0; opacity:0; margin:0; cursor:pointer; z-index:1; }
+    .switch i { position:absolute; inset:0; border-radius:999px; background:#cfc8bd; transition:background .2s; }
+    .switch i::after { content:''; position:absolute; top:4px; left:4px; width:28px; height:28px; border-radius:999px; background:#fff; box-shadow:0 1px 4px rgba(0,0,0,.25); transition:transform .2s; }
+    .switch input:checked + i { background:var(--ok); }
+    .switch input:checked + i::after { transform:translateX(28px); }
+    .switch input:focus-visible + i { outline:3px solid #9cc7ff; outline-offset:2px; }
+    .pause { display:flex; gap:6px; flex-wrap:wrap; }
+
+    /* stat tiles */
+    .tiles { display:grid; grid-template-columns:repeat(4, 1fr); gap:12px; margin-bottom:14px; }
+    .tile { background:var(--card); border:1px solid var(--line); border-radius:var(--r); padding:14px 16px; }
+    .tile .k { font-size:12.5px; font-weight:700; color:var(--muted); }
+    .tile .v { font-size:24px; font-weight:800; font-variant-numeric:tabular-nums; margin-top:2px; letter-spacing:-.01em; }
+    .tile .d { font-size:12.5px; color:var(--muted); margin-top:2px; }
+    .tile .d .up { color:var(--ok); font-weight:700; } .tile .d .dn { color:var(--bad); font-weight:700; }
+    @media (max-width:860px) { .tiles { grid-template-columns:repeat(2, 1fr); gap:10px; } .tile .v { font-size:20px; } }
+
+    /* order board */
+    .boardbar { display:flex; gap:10px; align-items:center; margin:0 0 12px; flex-wrap:wrap; }
+    .boardbar .scrollx { flex:1; min-width:0; }
+    .cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:12px; }
+    .oc { background:var(--card); border:1px solid var(--line); border-radius:var(--r); padding:14px; display:flex; flex-direction:column; gap:8px; cursor:pointer; transition:box-shadow .15s; }
+    .oc:hover { box-shadow:0 4px 18px rgba(0,0,0,.07); }
+    .oc.fresh { animation:flash 1.6s ease 3; }
+    .oc.prob { border-color:#f2c2bc; box-shadow:inset 4px 0 0 var(--bad); }
+    @keyframes flash { 50% { background:#fff4cf; } }
+    .oc .top { display:flex; align-items:baseline; gap:8px; }
+    .oc .no { font-weight:800; font-size:17px; }
+    .oc .ago { margin-left:auto; color:var(--muted); font-size:12.5px; white-space:nowrap; }
+    .oc .who { font-size:14px; }
+    .oc .items { font-size:13.5px; color:var(--ink2); display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+    .oc .meta { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+    .oc .sl { font-size:13px; color:var(--ink2); }
+    .oc .acts { display:flex; gap:6px; flex-wrap:wrap; margin-top:2px; }
+    .oc .tot { font-weight:800; font-variant-numeric:tabular-nums; margin-left:auto; }
+    .empty { text-align:center; padding:36px 10px; color:var(--muted); background:var(--card); border:1px dashed var(--line); border-radius:var(--r); }
+
+    /* drawer */
+    .drawer { position:fixed; inset:0; z-index:40; display:none; }
     .drawer.show { display:block; }
     .drawer .scrim { position:absolute; inset:0; background:rgba(0,0,0,.4); }
-    .drawer .panel { position:absolute; right:0; top:0; bottom:0; width:min(100%,560px); background:var(--bg); overflow-y:auto; padding:18px; box-shadow:-10px 0 30px rgba(0,0,0,.25); }
+    .drawer .panel { position:absolute; right:0; top:0; bottom:0; width:min(100%,580px); background:var(--bg); overflow-y:auto; padding:18px 18px 40px; box-shadow:-10px 0 30px rgba(0,0,0,.25); }
     .kv { display:grid; grid-template-columns:120px 1fr; gap:6px 12px; font-size:14px; }
     .kv dt { color:var(--muted); } .kv dd { margin:0; word-break:break-word; }
-    .log { font-size:13px; color:#5c4a35; padding-left:18px; margin:0; }
+    .log { font-size:13px; color:var(--ink2); padding-left:18px; margin:0; }
     .log li { margin:3px 0; }
-    .login { max-width:360px; margin:12vh auto; text-align:center; }
-    .login img { width:120px; }
-    .toast { position:fixed; left:50%; bottom:24px; transform:translateX(-50%); background:#1b1917; color:#fff; padding:11px 18px; border-radius:10px; z-index:60; display:none; max-width:92vw; }
-    .ok { color:var(--green); font-weight:700; } .bad { color:var(--red); font-weight:700; }
-    .ptable td { padding:6px 4px; } .ptable .inp { width:100%; padding:7px 8px; }
-    .branch { border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:10px; background:#fcfaf5; }
-    .hidden { display:none !important; }
-    .photo { width:56px; height:56px; border-radius:10px; border:1.5px dashed var(--line); background:#fbf7ef; padding:0; overflow:hidden; font-size:11px; font-weight:700; color:var(--muted); display:grid; place-items:center; }
-    .photo img { width:100%; height:100%; object-fit:cover; display:block; }
-    .photo:not(.none) { border-style:solid; }
-    .linkx { display:block; border:0; background:none; color:var(--red); font-size:11px; padding:2px 0 0; }
     .cutline { font-size:12.5px; color:#8a5a2e; font-weight:600; }
-    @media (max-width:700px) { .hide-sm { display:none; } .kv { grid-template-columns:96px 1fr; } }
+    .note { padding:10px 12px; border-radius:10px; background:var(--warn-bg); color:#5e3a00; font-size:13.5px; }
+    .note.info { background:var(--info-bg); color:#173c78; }
+
+    /* menu */
+    .mi { display:flex; align-items:center; gap:12px; padding:10px 4px; border-bottom:1px solid var(--line); }
+    .mi:last-child { border-bottom:0; }
+    .mi .ph2 { width:52px; height:52px; border-radius:10px; background:var(--soft); overflow:hidden; flex:none; display:grid; place-items:center; font-size:10px; color:var(--muted); border:1px solid var(--line); }
+    .mi .ph2 img { width:100%; height:100%; object-fit:cover; display:block; }
+    .mi .nm { flex:1; min-width:0; cursor:pointer; }
+    .mi .nm b { display:block; }
+    .mi .nm span { font-size:12.5px; color:var(--muted); }
+    .mi .pr { font-weight:800; font-variant-numeric:tabular-nums; white-space:nowrap; }
+    .mi.off .nm, .mi.off .pr { opacity:.5; }
+    .catname { font-size:13px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); margin:6px 0 4px; }
+    .sw-sm { position:relative; width:46px; height:26px; flex:none; }
+    .sw-sm input { position:absolute; inset:0; opacity:0; margin:0; cursor:pointer; z-index:1; }
+    .sw-sm i { position:absolute; inset:0; border-radius:999px; background:#cfc8bd; transition:background .2s; }
+    .sw-sm i::after { content:''; position:absolute; top:3px; left:3px; width:20px; height:20px; border-radius:999px; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.25); transition:transform .2s; }
+    .sw-sm input:checked + i { background:var(--ok); }
+    .sw-sm input:checked + i::after { transform:translateX(20px); }
+    .photo { width:96px; height:96px; border-radius:12px; border:1.5px dashed var(--line); background:var(--soft); padding:0; overflow:hidden; font-size:12px; font-weight:700; color:var(--muted); display:grid; place-items:center; }
+    .photo img { width:100%; height:100%; object-fit:cover; display:block; }
+
+    /* insights */
+    .chart { position:relative; height:240px; }
+    .chart svg { display:block; width:100%; height:100%; overflow:visible; }
+    .chart .tip { position:absolute; pointer-events:none; background:var(--ink); color:#fff; border-radius:8px; padding:6px 9px; font-size:12.5px; white-space:nowrap; transform:translate(-50%, calc(-100% - 10px)); display:none; z-index:2; }
+    .chart .tip b { display:block; }
+    .bars2 td { padding:7px 8px; } .bars2 .num { white-space:nowrap; }
+    .hbar { height:10px; border-radius:0 4px 4px 0; background:var(--series-1); min-width:2px; }
+    .split2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+    @media (max-width:860px) { .split2 { grid-template-columns:1fr; } }
+    .money { display:grid; grid-template-columns:1fr auto; gap:6px 14px; font-size:14px; }
+    .money .num { font-weight:700; }
+    .money .sep { grid-column:1/-1; border-top:1px solid var(--line); margin:2px 0; }
+
+    /* activity */
+    .act { display:grid; grid-template-columns:86px 92px 1fr; gap:10px; padding:9px 4px; border-bottom:1px solid var(--line); font-size:13.5px; align-items:start; }
+    .act time { color:var(--muted); font-size:12.5px; font-variant-numeric:tabular-nums; }
+    .act a { font-weight:700; }
+    @media (max-width:600px) { .act { grid-template-columns:70px 1fr; } .act .tag { grid-column:2; justify-self:start; } .act .msg { grid-column:1/-1; } }
+    .a-order { background:var(--soft); color:var(--ink2); } .a-payment { background:var(--ok-bg); color:var(--ok); } .a-delivery { background:var(--info-bg); color:var(--info); }
+    .a-print { background:#efe6fb; color:#5b3a9a; } .a-staff { background:var(--warn-bg); color:var(--warn); } .a-member { background:#e0f3f5; color:#0f6670; }
+    .a-push { background:#fde9f1; color:#9a2357; } .a-system { background:var(--soft); color:var(--muted); } .a-error { background:var(--bad-bg); color:var(--bad); }
+
+    /* push preview */
+    .pushprev { display:flex; gap:10px; padding:12px; border-radius:14px; background:#ebe8e3; max-width:380px; }
+    .pushprev img { width:36px; height:36px; border-radius:8px; }
+    .pushprev b { display:block; font-size:14px; }
+    .pushprev span { font-size:13px; color:var(--ink2); }
+    .branch { border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:10px; background:var(--soft); }
+    .modes { display:flex; flex-wrap:wrap; gap:8px 16px; }
   </style>
 </head>
 <body>
   <div id="loginView" class="login hidden">
     <img src="/logo.png" alt="Ali's">
-    <h2 style="margin-top:14px">Staff dashboard</h2>
+    <h2 style="margin-top:14px;font:600 22px 'Oswald',sans-serif;text-transform:uppercase">Staff dashboard</h2>
     <form id="loginForm" class="card">
       <input class="inp" id="pass" type="password" placeholder="Passcode" autocomplete="current-password" style="width:100%">
       <button class="btn pri" style="width:100%;margin-top:10px">Log in</button>
@@ -88,38 +233,92 @@
     </form>
   </div>
 
-  <div id="appView" class="hidden">
-    <div class="bar"><div class="in">
-      <img src="/logo.png" alt="Ali's"><h1 class="hide-sm">Orders</h1>
-      <nav class="nav" id="nav">
-        <button data-tab="orders" class="on">Orders</button><button data-tab="products">Prices</button>
-        <button data-tab="coupons">Coupons</button><button data-tab="members">Customers</button><button data-tab="settings">Settings</button>
-      </nav>
-    </div></div>
-    <main>
-      <section data-view="orders">
-        <div class="row" style="margin-bottom:12px">
-          <div class="chips" id="filters">
-            <button class="chip on" data-f="active">Active</button><button class="chip" data-f="today">Today</button>
-            <button class="chip" data-f="problem">Needs attention</button><button class="chip" data-f="unpaid">Unpaid</button><button class="chip" data-f="all">All</button>
-          </div>
-          <input class="inp grow" id="search" placeholder="Search order no, name or phone" style="min-width:180px">
-          <button class="btn sm" id="soundBtn">🔔 Turn on order alert sound</button>
+  <div id="appView" class="shell hidden">
+    <aside class="side">
+      <div class="brand"><img src="/logo.png" alt="Ali's"><div><b>Fresh Meats</b><span>Staff dashboard</span></div></div>
+      <nav class="nav" id="nav"></nav>
+      <div class="foot">order.alisfreshmeats.com<br><button type="button" id="logout">Log out</button></div>
+    </aside>
+    <div class="main">
+      <div class="topbar"><img src="/logo.png" alt=""><b id="topTitle">Home</b><span id="topStatus" class="tag t-done">Open</span></div>
+
+      <!-- HOME -->
+      <section class="page" data-view="home">
+        <div class="store" id="storeCard">
+          <label class="switch" title="Online ordering on/off"><input type="checkbox" id="storeSwitch" aria-label="Open for online orders"><i></i></label>
+          <div class="st"><b id="storeTitle">…</b><span id="storeSub"></span></div>
+          <div class="pause" id="pauseBtns"></div>
         </div>
-        <div class="card" style="padding:6px 8px"><table class="list"><thead><tr><th>Order</th><th class="hide-sm">Time</th><th>Customer</th><th class="hide-sm">Branch</th><th>Status</th><th class="num">Total</th></tr></thead><tbody id="orderRows"></tbody></table>
-          <p class="muted" id="ordersEmpty" style="padding:14px;text-align:center"></p></div>
+        <div class="tiles" id="todayTiles"></div>
+        <div class="boardbar">
+          <div class="scrollx" id="boardTabs"></div>
+          <input class="inp" id="search" placeholder="Search order, name, phone" style="width:220px">
+        </div>
+        <div id="board" class="cards"></div>
+        <div class="row" style="margin-top:16px">
+          <button class="btn sm" id="soundBtn" type="button">🔕 Order sound off</button>
+          <button class="btn sm" id="pushBtn" type="button">📱 New-order alerts on this phone</button>
+          <span class="muted">Updates every 15 seconds.</span>
+        </div>
       </section>
 
-      <section data-view="products" class="hidden">
+      <!-- MENU -->
+      <section class="page hidden" data-view="menu">
+        <div class="ph"><h1>Menu</h1><button class="btn" id="addProduct" type="button">+ Add item</button><button class="btn pri" id="saveProducts" type="button">Save changes</button></div>
+        <p class="muted" style="margin-top:-6px">Turn the switch off when an item sold out (it saves straight away). Tap an item to change its price, photo, cutting choices or the most a customer can order.</p>
+        <div class="card" id="menuList"></div>
+        <input type="file" id="photoFile" accept="image/*" hidden>
+      </section>
+
+      <!-- INSIGHTS -->
+      <section class="page hidden" data-view="insights">
+        <div class="ph"><h1>Insights</h1></div>
+        <div class="row" style="margin-bottom:14px">
+          <div class="scrollx" id="rangeChips"></div>
+          <div class="row hidden" id="customRange"><input class="inp" type="date" id="rFrom"><span class="muted">to</span><input class="inp" type="date" id="rTo"><button class="btn sm pri" id="rGo" type="button">Show</button></div>
+        </div>
+        <div id="insights"><p class="muted">Loading…</p></div>
+      </section>
+
+      <!-- CUSTOMERS -->
+      <section class="page hidden" data-view="customers">
+        <div class="ph"><h1>Customers</h1><input class="inp" id="memberSearch" placeholder="Search name, phone or email" style="width:240px"></div>
         <div class="card">
-          <div class="row"><h2 class="grow" style="margin:0">Prices &amp; menu</h2><button class="btn" id="addProduct">+ Add product</button><button class="btn pri" id="saveProducts">Save prices</button></div>
-          <p class="muted">Change prices any time (seasonal prices). Untick “On sale” to hide sold-out items. Tick “Cutting” to let customers choose piece size, piece weight and cooking style. Click a photo box to upload a picture (it saves straight away). Price changes show on the shop when you click Save prices.</p>
-          <div style="overflow-x:auto"><table class="list ptable"><thead><tr><th>Photo</th><th>Category</th><th>Name</th><th class="hide-sm">Note</th><th>Price (RM)</th><th>Per</th><th title="Customers can choose how it's cut">Cutting</th><th>On sale</th><th></th></tr></thead><tbody id="productRows"></tbody></table></div>
-          <input type="file" id="photoFile" accept="image/*" hidden>
+          <h2>Members <span id="memberCount"></span></h2>
+          <p class="muted">Customers who signed up. Points: they earn on every paid order and use them at checkout. If someone forgets their password, use “Reset password” and send the new one on WhatsApp.</p>
+          <div style="overflow-x:auto"><table class="list"><thead><tr><th>Name</th><th>Phone</th><th>Orders</th><th>Points</th><th>Discount</th><th>Joined</th><th></th></tr></thead><tbody id="regRows"></tbody></table></div>
+        </div>
+        <div class="card">
+          <h2>Special discount by phone</h2>
+          <p class="muted">Regular customers get this % off automatically when they check out with this phone number (with or without an account).</p>
+          <form id="memberForm" class="grid">
+            <label class="f">Phone<input class="inp" name="phone" required placeholder="012-345 6789"></label>
+            <label class="f">Name<input class="inp" name="name" placeholder="Customer name"></label>
+            <label class="f">Discount %<input class="inp" name="discountPct" type="number" step="0.5" min="0" max="100" required placeholder="5"></label>
+            <label class="f">Note<input class="inp" name="note" placeholder="optional"></label>
+          </form>
+          <div class="row" style="margin-top:12px"><button class="btn pri" id="saveMember" type="button">Save discount</button><button class="btn" id="resetMember" type="button">Clear</button></div>
+          <div style="overflow-x:auto;margin-top:12px"><table class="list"><thead><tr><th>Phone</th><th>Name</th><th>Discount</th><th>Note</th><th></th></tr></thead><tbody id="memberRows"></tbody></table></div>
         </div>
       </section>
 
-      <section data-view="coupons" class="hidden">
+      <!-- PROMOTIONS -->
+      <section class="page hidden" data-view="promos">
+        <div class="ph"><h1>Promotions</h1></div>
+        <div class="card">
+          <h2>Send a notification</h2>
+          <p class="muted">Goes to every phone that turned on deal alerts (<b id="subCount">0</b> right now). Customers turn them on with “Get deal alerts” on the shop or in their account. Up to 6 per hour.</p>
+          <div class="split2">
+            <div>
+              <label class="f">Title<input class="inp" id="pTitle" maxlength="60" placeholder="Fresh lamb shank is back! 🍖"></label>
+              <label class="f" style="margin-top:10px">Message<textarea class="inp" id="pBody" rows="3" maxlength="180" placeholder="Order today and get 10% off with code SHANK10."></textarea></label>
+              <label class="f" style="margin-top:10px">Opens<select class="inp" id="pUrl"><option value="/">The shop</option><option value="/account.html">My account</option></select></label>
+              <div class="row" style="margin-top:12px"><button class="btn pri" id="pSend" type="button">Send to all</button></div>
+            </div>
+            <div><div class="muted" style="margin-bottom:6px">Preview</div><div class="pushprev"><img src="/icons/icon-192.png" alt=""><div><b id="pvT">Fresh lamb shank is back! 🍖</b><span id="pvB">Order today and get 10% off with code SHANK10.</span></div></div>
+              <h2 style="margin-top:18px">Sent</h2><div id="promoHistory" class="muted">—</div></div>
+          </div>
+        </div>
         <div class="card">
           <h2 id="couponFormTitle">New coupon</h2>
           <form id="couponForm" class="grid">
@@ -131,105 +330,117 @@
             <label class="f">Starts on<input class="inp" name="startsOn" type="date"></label>
             <label class="f">Ends on<input class="inp" name="endsOn" type="date"></label>
             <label class="f">Total uses allowed<input class="inp" name="maxUses" type="number" min="0" placeholder="0 = unlimited"></label>
-            <label class="f">Only for these phone numbers<input class="inp" name="phones" placeholder="optional, comma separated"><small>Leave empty for everyone</small></label>
+            <label class="f">Only for these phone numbers<input class="inp" name="phones" placeholder="optional, comma separated"></label>
             <label class="f">Note<input class="inp" name="note" placeholder="optional, staff only"></label>
-            <label class="f" style="align-self:center"><input type="checkbox" name="oncePerCustomer"> One use per customer</label>
-            <label class="f" style="align-self:center"><input type="checkbox" name="active" checked> Active</label>
+            <label class="ck"><input type="checkbox" name="oncePerCustomer"> One use per customer</label>
+            <label class="ck"><input type="checkbox" name="active" checked> Active</label>
           </form>
-          <div class="row" style="margin-top:12px"><button class="btn pri" id="saveCoupon">Save coupon</button><button class="btn" id="resetCoupon">Clear form</button></div>
+          <div class="row" style="margin-top:12px"><button class="btn pri" id="saveCoupon" type="button">Save coupon</button><button class="btn" id="resetCoupon" type="button">Clear</button></div>
+          <div style="overflow-x:auto;margin-top:12px"><table class="list"><thead><tr><th>Code</th><th>Discount</th><th>Conditions</th><th>Used</th><th>Status</th><th></th></tr></thead><tbody id="couponRows"></tbody></table></div>
         </div>
-        <div class="card" style="padding:6px 8px"><table class="list"><thead><tr><th>Code</th><th>Discount</th><th class="hide-sm">Conditions</th><th>Used</th><th>Status</th><th></th></tr></thead><tbody id="couponRows"></tbody></table></div>
       </section>
 
-      <section data-view="members" class="hidden">
-        <div class="card">
-          <div class="row"><h2 class="grow" style="margin:0">Registered members <span class="muted" id="memberCount"></span></h2><input class="inp" id="memberSearch" placeholder="Search name, phone or email" style="min-width:200px"></div>
-          <p class="muted">Customers who signed up at <b>order.alisfreshmeats.com/account.html</b>. If someone forgets their password, click “Reset password” and send them the new one on WhatsApp.</p>
-          <div style="overflow-x:auto"><table class="list"><thead><tr><th>Name</th><th>Phone</th><th class="hide-sm">Email</th><th class="hide-sm">Joined</th><th>Orders</th><th>Offer</th><th>Discount</th><th></th></tr></thead><tbody id="regRows"></tbody></table></div>
-        </div>
-        <div class="card">
-          <h2>Special discounts by phone</h2>
-          <p class="muted">Regular customers get this discount automatically when they check out with this phone number (with or without an account).</p>
-          <form id="memberForm" class="grid">
-            <label class="f">Phone<input class="inp" name="phone" required placeholder="012-345 6789"></label>
-            <label class="f">Name<input class="inp" name="name" placeholder="Customer name"></label>
-            <label class="f">Discount %<input class="inp" name="discountPct" type="number" step="0.5" min="0" max="100" required placeholder="5"></label>
-            <label class="f">Note<input class="inp" name="note" placeholder="optional"></label>
-          </form>
-          <div class="row" style="margin-top:12px"><button class="btn pri" id="saveMember">Save member</button><button class="btn" id="resetMember">Clear form</button></div>
-        </div>
-        <div class="card" style="padding:6px 8px"><table class="list"><thead><tr><th>Phone</th><th>Name</th><th>Discount</th><th class="hide-sm">Note</th><th></th></tr></thead><tbody id="memberRows"></tbody></table></div>
+      <!-- ACTIVITY -->
+      <section class="page hidden" data-view="activity">
+        <div class="ph"><h1>Activity log</h1><input class="inp" id="actSearch" placeholder="Search, e.g. AFM-1012 or Lalamove" style="width:260px"></div>
+        <div class="scrollx" id="actTypes" style="margin-bottom:12px"></div>
+        <div class="card" id="actList" style="padding:6px 12px"></div>
+        <div class="row"><button class="btn" id="actMore" type="button">Load more</button><span class="muted">Keeps the last 5,000 events: orders, payments, Lalamove, printing, staff changes, sign-ups and errors.</span></div>
       </section>
 
-      <section data-view="settings" class="hidden">
+      <!-- SETTINGS -->
+      <section class="page hidden" data-view="settings">
+        <div class="ph"><h1>Settings</h1></div>
         <div class="card"><h2>Connections</h2><div id="status" class="grid"></div>
-          <div class="row" style="margin-top:12px"><button class="btn" id="llmSetup">Connect Lalamove updates</button><span class="muted" id="llmSetupOut"></span></div>
+          <div class="row" style="margin-top:12px"><button class="btn" id="llmSetup" type="button">Connect Lalamove updates</button><span class="muted" id="llmSetupOut"></span></div>
           <div id="llmServices" class="muted" style="margin-top:8px"></div>
         </div>
         <form id="settingsForm">
-          <div class="card"><h2>Ordering</h2>
+          <div class="card"><h2>Ordering hours</h2>
             <div class="grid">
-              <label class="f"><input type="checkbox" name="acceptingOrders"> Accepting online orders</label>
               <label class="f">Open from<input class="inp" type="time" name="hours.open"></label>
               <label class="f">Last order at<input class="inp" type="time" name="hours.close"></label>
               <label class="f">Minimum order (RM)<input class="inp" type="number" step="0.01" min="0" name="minOrder"></label>
+              <label class="f">Prep time (minutes)<input class="inp" type="number" min="0" name="prepMinutes"><small>Lalamove driver is scheduled this long after payment. Also the earliest self-pickup time.</small></label>
             </div>
-            <h3>Closed on</h3><div class="chips" id="closedDays"></div>
-            <h3>Message on checkout</h3><input class="inp" name="checkoutNote" style="width:100%">
-            <h3>Discounts</h3><label class="f"><input type="checkbox" name="stackDiscounts"> Discounts can be combined (special discount, new member offer and coupon) <small>Off: the customer gets whichever single discount is biggest</small></label>
+            <h2 style="margin-top:16px">Closed on</h2><div class="chips" id="closedDays"></div>
+            <label class="f" style="margin-top:14px">Message on checkout<input class="inp" name="checkoutNote"></label>
           </div>
-          <div class="card"><h2>New member offer</h2>
-            <p class="muted">RM off the first paid order of a newly registered member. Used so far: <b id="welcomeUsed">0</b></p>
+          <div class="card"><h2>Delivery options</h2>
             <div class="grid">
-              <label class="f"><input type="checkbox" name="welcome.enabled"> Offer is on</label>
-              <label class="f">Amount off (RM)<input class="inp" type="number" step="0.5" min="0" name="welcome.amount"></label>
-              <label class="f">For the first … members<input class="inp" type="number" min="0" name="welcome.limit"><small>Raise this to extend the offer</small></label>
-              <label class="f">Minimum spend (RM)<input class="inp" type="number" step="0.01" min="0" name="welcome.minSpend"><small>0 = no minimum</small></label>
-            </div>
-          </div>
-          <div class="card"><h2>Cutting options</h2>
-            <p class="muted">Shown on products with “Cutting” ticked. Separate choices with commas. Customers can also type a custom size, a custom weight and a comment.</p>
-            <div class="grid">
-              <label class="f">Piece sizes<input class="inp" name="cutting.sizes" placeholder="1 inch, 2 inch, 3 inch, 4 inch"></label>
-              <label class="f">Piece weights (grams)<input class="inp" name="cutting.weights" placeholder="10, 20, 30, 40, 50"></label>
-              <label class="f">Cooking styles<input class="inp" name="cutting.cooking" placeholder="Curry cut, Kurma, Chukka, Briyani"></label>
-            </div>
-          </div>
-          <div class="card"><h2>Delivery (Lalamove)</h2>
-            <div class="grid">
-              <label class="f">Prep time before pickup (minutes)<input class="inp" type="number" min="0" name="prepMinutes"><small>Lalamove is booked right after payment; the driver is scheduled to arrive this many minutes later. 0 = straight away.</small></label>
+              <label class="ck"><input type="checkbox" name="priority.enabled"><span>Offer Priority delivery<small>Customer pays extra; we add it on Lalamove as a priority fee so a driver accepts faster.</small></span></label>
+              <label class="f">Priority extra (RM)<input class="inp" type="number" step="0.5" min="0" name="priority.fee"></label>
+              <label class="ck"><input type="checkbox" name="saver.enabled"><span>Offer Saver (pooling)<small>Only works if Lalamove turns on pooling for your API account. Ask your Lalamove account manager for the service type key.</small></span></label>
+              <label class="f">Saver service type<input class="inp" name="saver.serviceType" placeholder="from Lalamove"></label>
+              <label class="f">Delivery buffer (RM)<input class="inp" type="number" step="0.1" min="0" name="deliveryMarkup"><small>Added to every delivery fee. Covers Lalamove price changes if a delivery must be rebooked. 0 = customer pays the Lalamove price.</small></label>
               <label class="f">Vehicle<input class="inp" name="serviceType" placeholder="MOTORCYCLE"></label>
               <label class="f">Use a bigger vehicle above (kg)<input class="inp" type="number" min="0" step="0.5" name="heavyOrderKg"></label>
               <label class="f">Bigger vehicle<input class="inp" name="heavyServiceType" placeholder="CAR"></label>
-              <label class="f">Special requests<input class="inp" name="specialRequests" placeholder="optional, e.g. insulated bag key"><small>Keys from “Connect Lalamove updates” list</small></label>
-              <label class="f">Add to delivery fee (RM)<input class="inp" type="number" step="0.1" min="0" name="deliveryMarkup"><small>0 = customer pays the Lalamove price</small></label>
-              <label class="f" style="grid-column:1/-1">Delivery area message<input class="inp" name="deliveryAreaNote"><small>Shown on the shop and when an address is too far. The distance limit for each shop is set under Branches.</small></label>
+              <label class="f">Special requests<input class="inp" name="specialRequests" placeholder="optional, e.g. insulated bag key"></label>
+              <label class="f" style="grid-column:1/-1">Delivery area message<input class="inp" name="deliveryAreaNote"><small>The distance limit for each shop is set under Branches.</small></label>
+            </div>
+          </div>
+          <div class="card"><h2>Self pickup</h2>
+            <div class="grid">
+              <label class="ck"><input type="checkbox" name="pickup.enabled"><span>Customers can collect at the shop<small>They choose the branch and a time slot.</small></span></label>
+              <label class="f">Time slot every (minutes)<input class="inp" type="number" min="10" max="240" step="5" name="pickup.slotMinutes"></label>
+              <label class="f">Days ahead<input class="inp" type="number" min="1" max="7" name="pickup.days"><small>1 = today only</small></label>
+            </div>
+          </div>
+          <div class="card"><h2>Loyalty points</h2>
+            <div class="grid">
+              <label class="ck"><input type="checkbox" name="loyalty.enabled"><span>Points for members</span></label>
+              <label class="f">Points per RM1 spent<input class="inp" type="number" min="0" step="0.5" name="loyalty.earnPerRM"><small>On meat, after discounts (not delivery)</small></label>
+              <label class="f">Points needed<input class="inp" type="number" min="1" name="loyalty.redeemPoints"></label>
+              <label class="f">…worth (RM off)<input class="inp" type="number" min="0" step="0.5" name="loyalty.redeemValue"></label>
+              <label class="f">Max % of the meat total<input class="inp" type="number" min="0" max="100" name="loyalty.maxPct"></label>
+            </div>
+          </div>
+          <div class="card"><h2>Discounts &amp; new member offer</h2>
+            <label class="ck"><input type="checkbox" name="stackDiscounts"><span>Discounts can be combined<small>Off: the customer gets whichever single discount is biggest</small></span></label>
+            <p class="muted">New member offer used so far: <b id="welcomeUsed">0</b></p>
+            <div class="grid">
+              <label class="ck"><input type="checkbox" name="welcome.enabled"> Offer is on</label>
+              <label class="f">Amount off (RM)<input class="inp" type="number" step="0.5" min="0" name="welcome.amount"></label>
+              <label class="f">For the first … members<input class="inp" type="number" min="0" name="welcome.limit"></label>
+              <label class="f">Minimum spend (RM)<input class="inp" type="number" step="0.01" min="0" name="welcome.minSpend"></label>
+            </div>
+          </div>
+          <div class="card"><h2>Cutting choices</h2>
+            <p class="muted">Each item picks which of these it offers (Menu → tap the item). Separate choices with commas.</p>
+            <div class="grid">
+              <label class="f">Piece sizes<input class="inp" name="cutting.sizes" placeholder="1 inch, 2 inch, 3 inch, 4 inch"></label>
+              <label class="f">Piece weights (grams)<input class="inp" name="cutting.weights" placeholder="10, 20, 30, 40, 50"></label>
+              <label class="f">Cut each into<input class="inp" name="cutting.splits" placeholder="2 pcs, 3 pcs"></label>
+              <label class="f">Slice thickness<input class="inp" name="cutting.thickness" placeholder="0.5 inch, 1 inch, 1.5 inch"></label>
+              <label class="f">Cooking styles<input class="inp" name="cutting.cooking" placeholder="Curry cut, Kurma, Chukka, Briyani"></label>
             </div>
           </div>
           <div class="card"><h2>Labels (Clabel CT221B)</h2>
             <div class="grid">
-              <label class="f">Sticker width (mm)<input class="inp" type="number" min="15" max="150" name="label.widthMm"><small>The long side, as you read the sticker</small></label>
+              <label class="f">Sticker width (mm)<input class="inp" type="number" min="15" max="150" name="label.widthMm"><small>The long side, as you read it</small></label>
               <label class="f">Sticker height (mm)<input class="inp" type="number" min="15" max="150" name="label.heightMm"></label>
-              <label class="f"><input type="checkbox" name="label.rotate90"> Turn print 90° <small>Keep on if labels come out sideways (portrait). Untick if they come out sideways after this change.</small></label>
-              <label class="f"><input type="checkbox" name="label.flip"> Turn print 180° <small>If labels come out upside down</small></label>
-              <label class="f"><input type="checkbox" name="label.perItem"> Also print one label per item <small>To stick on each pack</small></label>
-              <label class="f"><input type="checkbox" name="label.qr"> QR code on label <small>Scan it with a staff phone to open that order in this dashboard (reprint, call the customer, Lalamove status)</small></label>
+              <label class="ck"><input type="checkbox" name="label.rotate90"><span>Turn print 90°<small>Keep on for landscape stickers</small></span></label>
+              <label class="ck"><input type="checkbox" name="label.flip"><span>Turn print 180°<small>If labels come out upside down</small></span></label>
+              <label class="ck"><input type="checkbox" name="label.perItem"><span>Also one label per item</span></label>
+              <label class="ck"><input type="checkbox" name="label.qr"><span>QR code on label<small>Scan with a staff phone to open the order here</small></span></label>
             </div>
-            <div class="row" style="margin-top:10px"><button class="btn sm" type="button" id="previewLabel">Preview label</button><span class="muted">Save settings first, then use “Print test label” under Branches to check on the printer.</span></div>
+            <div class="row" style="margin-top:10px"><button class="btn sm" type="button" id="previewLabel">Preview label</button></div>
           </div>
           <div class="card"><h2>Branches</h2>
-            <p class="muted">Orders go to the nearest active branch whose delivery radius covers the address (straight-line distance). To get coordinates: open Google Maps, right-click your shop, click the numbers at the top to copy them, and paste into “Coordinates”.</p>
+            <p class="muted">Delivery orders go to the nearest active branch whose radius covers the address. Coordinates: right-click the shop in Google Maps and click the numbers to copy them.</p>
             <div id="branches"></div>
             <div class="row"><button class="btn" type="button" id="addBranch">+ Add branch</button><button class="btn" type="button" id="loadPrinters">Load printers from PrintNode</button></div>
           </div>
           <div class="row"><button class="btn pri">Save settings</button><span class="muted" id="settingsOut"></span></div>
         </form>
       </section>
-    </main>
 
+      <nav class="bnav" id="bnav"></nav>
+    </div>
     <div class="drawer" id="drawer"><div class="scrim" data-close></div><div class="panel" id="drawerBody"></div></div>
   </div>
-  <div class="toast" id="toast"></div>
-  <script src="/admin.js"></script>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="/admin.js?v=11"></script>
 </body>
 </html>

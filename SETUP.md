@@ -64,7 +64,7 @@ If your labels aren't 50 × 30 mm, change the size in **Settings → Labels** to
 2. Create an API key and restrict it to **Websites**: `order.alisfreshmeats.com/*`.
 3. Add the key as `GOOGLE_MAPS_API_KEY`.
 
-Without this key, customers can still order using "Use my current location" plus a typed address, but address search won't work.
+Without this key (or if Google rejects it), the checkout uses a free OpenStreetMap map instead: customers still search, tap ◎ for their location and drag the map to put the pin on their door, like in the Lalamove app. Google gives better building names, so the key is still worth adding.
 
 ## 8. Environment variables
 `.env.example` lists every variable. On top of the keys from the steps above, add:
@@ -94,22 +94,33 @@ When everything works, switch Billplz and Lalamove to live keys (steps 4.5 and 5
 ---
 
 ## Day to day
-- Keep the dashboard open at the counter and click **Turn on order alert sound** once. New paid orders chime and flash.
-- Scanning the **QR code on a label** opens that order in the dashboard.
-- **Prices**: change prices any time, untick "On sale" for sold-out items, then click **Save prices**. The shop updates immediately.
-- **Coupons**: set % or RM off, minimum spend, dates, usage limits, one use per customer, or restrict to specific phone numbers.
-- **Members**: give a regular customer a standing % discount by phone number. They get the bigger of their member discount or a coupon, unless you allow both in Settings.
+The dashboard (`/admin.html`) works like a food-delivery merchant app. On a phone, open it in Chrome (Android) or Safari (iPhone → Share → Add to Home Screen) to install it as **Ali's Staff**.
+- **Home**: the big switch turns online ordering on/off. **Busy? Pause** stops orders for 30 min, 1 hour or the rest of the day and reopens by itself.
+- Today's sales, orders and average order sit under the switch.
+- The order board has tabs: **Preparing**, **Ready / on the way**, **Needs attention**, **Later pickups**, **Done today**, **Checking out** (not paid yet) and **All orders**. Tap a card for full details.
+- Card buttons: **Ready for pickup** (the customer gets a notification), **Collected**, **Packed**, **Add tip**, **Change driver**, **Rebook**, **Reprint**.
+- Click **Order sound** once so new paid orders chime. **New-order alerts on this phone** sends a phone notification for every paid order, even when the dashboard is closed.
+- Scanning the **QR code on a label** opens that order.
+- **Menu**: switch an item off when it's sold out (saves at once). Tap an item to change its price, photo, cutting choices or **Max per order**.
+- **Insights**: sales, orders, average order, customers, sales by hour or day, best sellers, branches, delivery vs pickup, Lalamove cost vs what customers paid, discounts and points. Choose Today, Last 7 days, This month, Last month, Last 30 days or Custom.
+- **Customers**: members with their points (± Points to give or remove), special % discounts by phone, password reset.
+- **Promotions**: send a notification to every phone that turned on deal alerts. Coupons live here too.
+- **Activity**: everything that happened (orders, payments, Lalamove, printing, staff changes, sign-ups, errors), with filters and search. Use it to trace a problem.
 
 ## When something goes wrong
 | You see | Do this |
 |---|---|
 | ⚠ Label not printed | Check the branch PC is on and PrintNode is running, then click **Reprint label**. Or click **Label PDF** and print it from the browser. |
-| ⚠ Lalamove booking failed / expired / rejected | Read the error (often a low wallet balance), fix it, then click **Rebook Lalamove**. |
+| Lalamove still finding a driver after ~10 min | Click **Add tip** (e.g. RM3). It keeps the original booking and price; don't cancel and rebook. |
+| Driver accepted but is late or not answering | Open the order → **Change driver** (allowed 15 min after the driver accepted, before pickup; free, same price). |
+| ⚠ Lalamove booking failed / expired / rejected | Read the error (often a low wallet balance). Open the order → **Check new price** shows today's price next to what the customer paid → **Rebook**. |
 | Customer says they paid but the order shows Unpaid | Open the order and click **Check payment with Billplz**. If Billplz confirms payment, it books the delivery and prints the label. |
-| Need to stop orders (holiday, out of stock) | Go to **Settings** → untick **Accepting online orders**. |
+| Need to stop orders (holiday, too busy) | **Home** → turn the switch off, or **Pause** for a while. |
+| Need to cancel a paid order | Open it → **Cancel order…**, then refund the customer in Billplz or by bank transfer. Points are returned automatically. |
 
 ## Notes
-- Delivery fee: the customer pays the Lalamove price quoted at checkout. Lalamove is re-quoted when it's booked after payment, and the small difference, if any, is yours. The dashboard shows both amounts. You can add a fixed amount on top in Settings.
+- Delivery fee: the customer pays the Lalamove price quoted at checkout (+ RM5 for Priority). Lalamove is re-quoted when it's booked after payment, so there can be a small difference. **Settings → Delivery options → Delivery buffer** adds a fixed RM to every delivery to cover price changes and the odd rebook. **Insights** shows what customers paid vs what Lalamove cost.
+- **Saver (pooling)**: Lalamove's API doesn't offer pooling to every account. Ask your Lalamove account manager to turn it on for the API and give you the service type key, then tick **Offer Saver** and enter the key. Until then customers see Standard and Priority only.
 - Customers pay for the weight they ordered. The checkout note tells them final weight may vary slightly. You can edit that text in Settings.
 - Customer details are kept for order handling only. Mention online orders in your privacy notice (PDPA).
 
@@ -154,3 +165,30 @@ After entering your real shop coordinates, check the radius values and adjust if
 - **Turn print 90°** is on by default. It fixes labels coming out sideways (portrait).
 - If the label is still sideways, untick it. If it's upside down, tick **Turn print 180°**.
 - **Preview label** shows the layout.
+
+---
+
+## Delivery speed, self pickup, points, notifications and installing the app
+
+**Cutting choices per item** (Menu → tap the item):
+- Piece size, piece weight, **cut each into** (2 or 3 pcs), **number of pieces** and **slice thickness**, plus cooking style.
+- Marrow bones offer only "cut each into", so customers must pick 2 pcs or 3 pcs.
+- Lamb chop shoulder slices offer number of pieces or slice thickness (0.5, 1, 1.5 inch, or their own).
+- Edit the lists under **Settings → Cutting choices**.
+
+**Max per order:** head 2 sets, feet 2 sets, brain 4 pcs, spleen 4 pcs, liver 2 kg, tripe 2 kg, lamb shank 4 kg. Change them in Menu (0 = no limit).
+
+**Editing at checkout:** each cart line has **Edit cut** and **Remove**, plus +/−.
+
+**Delivery options:** Standard, and Priority (+RM5, sent to Lalamove as a priority fee so a driver accepts faster). Saver appears only once Lalamove enables pooling (see Notes).
+
+**Self pickup:** the customer picks a branch and a time slot (every 30 minutes, today and tomorrow, from prep time onwards). No Lalamove is booked. The label says SELF PICKUP with the time. Mark **Ready for pickup** and the customer gets a notification. Change slots under **Settings → Self pickup**.
+
+**Loyalty points (members):** 1 point per RM1 spent on meat after discounts. 100 points = RM5 off, up to 50% of the meat total. Points are added when an order is paid and returned if you cancel it. Change the rates under **Settings → Loyalty points**.
+
+**Install as an app:** on Android, customers see an **Install** bar. On iPhone, the bar shows how to install: Share → Add to Home Screen.
+
+**Notifications:**
+- Customers tap **Get deal alerts** on the shop, or **Notify me** on their order page, or use the switches on their account page.
+- On iPhone, notifications only work after the app is added to the Home Screen.
+- Order updates: confirmed, driver on the way, out for delivery, delivered, ready for pickup.

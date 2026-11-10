@@ -118,6 +118,67 @@ assert.ok(at(3.6800, 100.9870).outside, 'Sabak Bernam outside');
 assert.strictEqual(branchRadiusKm({ id: 'selayang' }), 48); assert.strictEqual(branchRadiusKm({ id: 'brickfields' }), 55);
 console.log('✓ Delivery radius (KKB, Kuala Selangor, Seremban in; Port Dickson, Tanjung Malim out)');
 
+// ---- cut modes per product + max per order ----
+r = priceCart({ items: [{ productId: 'mutton-leg-bones-marrow', qty: 1, cut: { by: 'split', split: '3 pcs' } }], products: SEED_PRODUCTS, coupons: {}, customers: {}, settings: S });
+assert.deepStrictEqual(r.errors, []); assert.strictEqual(r.lines[0].cutText, 'Cut each into 3 pcs');
+r = priceCart({ items: [{ productId: 'mutton-leg-bones-marrow', qty: 1, cut: { by: 'size', size: '2 inch' } }], products: SEED_PRODUCTS, coupons: {}, customers: {}, settings: S });
+assert.ok(/isn't available/.test(r.errors[0]), 'marrow: only 2/3 pcs');
+r = priceCart({ items: [{ productId: 'mutton-leg-bones-marrow', qty: 1, cut: { by: 'split', split: '3 pcs', cooking: 'Kurma' } }], products: SEED_PRODUCTS, coupons: {}, customers: {}, settings: S });
+assert.ok(/Cooking styles aren't offered/.test(r.errors[0]));
+r = priceCart({ items: [{ productId: 'lamb-chop-shoulder-slices', qty: 1, cut: { by: 'count', count: '12' } }, { productId: 'lamb-chop-shoulder-slices', qty: 1, cut: { by: 'thickness', thickness: '1 inch', cooking: 'Chukka' } }], products: SEED_PRODUCTS, coupons: {}, customers: {}, settings: S });
+assert.deepStrictEqual(r.errors, []);
+assert.strictEqual(r.lines[0].cutText, '12 pieces'); assert.strictEqual(r.lines[1].cutText, '1 inch thick · Chukka');
+r = priceCart({ items: [{ productId: 'lamb-chop-shoulder-slices', qty: 1, cut: { by: 'count', count: '0' } }], products: SEED_PRODUCTS, coupons: {}, customers: {}, settings: S });
+assert.ok(/how many pieces/.test(r.errors[0]));
+r = priceCart({ items: [{ productId: 'head', qty: 3 }], products: SEED_PRODUCTS, coupons: {}, customers: {}, settings: S });
+assert.strictEqual(r.errors[0], 'Head: maximum 2 sets per order.');
+r = priceCart({ items: [{ productId: 'lamb-shank', qty: 2, cut: { by: 'size', size: '2 inch' } }, { productId: 'lamb-shank', qty: 2.5 }], products: SEED_PRODUCTS, coupons: {}, customers: {}, settings: S });
+assert.strictEqual(r.errors[0], 'Lamb Shank: maximum 4 kg per order.', 'cap counts all lines of a product');
+r = priceCart({ items: [{ productId: 'brain', qty: 4 }, { productId: 'liver-set', qty: 2 }], products: SEED_PRODUCTS, coupons: {}, customers: {}, settings: S });
+assert.deepStrictEqual(r.errors, [], 'at the cap is fine');
+console.log('✓ Marrow 2/3 pcs, slices by count or thickness, max per order');
+
+// ---- loyalty points ----
+const { pointsRedemption, pointsEarned } = require('../lib/pricing');
+const L = { enabled: true, earnPerRM: 1, redeemPoints: 100, redeemValue: 5, maxPct: 50 };
+assert.deepStrictEqual(pointsRedemption(L, 250, 8500), { pointsUsed: 200, sen: 1000 }, 'whole blocks only');
+assert.deepStrictEqual(pointsRedemption(L, 1000, 3000), { pointsUsed: 300, sen: 1500 }, 'max 50% of RM30');
+assert.deepStrictEqual(pointsRedemption(L, 90, 8500), { pointsUsed: 0, sen: 0 });
+assert.deepStrictEqual(pointsRedemption({ ...L, enabled: false }, 500, 8500), { pointsUsed: 0, sen: 0 });
+assert.strictEqual(pointsEarned(L, 8599), 85);
+console.log('✓ Loyalty points');
+
+// ---- self pickup time slots (Malaysia time) ----
+const { pickupSlots } = require('../lib/util');
+const PS = { prepMinutes: 30, hours: { open: '09:00', close: '18:00', closedDays: [0] }, pickup: { enabled: true, slotMinutes: 30, days: 2 } };
+let slots = pickupSlots(PS, Date.parse('2026-11-10T08:10:00+08:00')); // Tue 8:10am
+assert.strictEqual(slots[0].label, 'Today 9:00am'); assert.strictEqual(slots.filter((x) => x.day === 'Today').length, 19);
+assert.strictEqual(new Set(slots.map((x) => x.day)).size, 2);
+slots = pickupSlots(PS, Date.parse('2026-11-10T14:05:00+08:00'));
+assert.strictEqual(slots[0].label, 'Today 3:00pm', 'now + 30 min prep, next slot');
+slots = pickupSlots(PS, Date.parse('2026-11-14T17:50:00+08:00')); // Sat after last slot; Sunday closed
+assert.deepStrictEqual([...new Set(slots.map((x) => x.day))], ['Mon 16 Nov', 'Tue 17 Nov'], 'skips closed Sunday');
+console.log('✓ Pickup time slots');
+
+// ---- order stages + insights ----
+const { stage } = require('../lib/stage');
+const paidO = { payment: { status: 'paid' }, delivery: {}, fulfilment: 'pickup', pickup: { at: '2026-11-10T07:00:00Z' } };
+assert.strictEqual(stage(paidO).board, 'preparing');
+assert.strictEqual(stage({ ...paidO, prep: { readyAt: 1 } }).key, 'ready');
+assert.strictEqual(stage({ ...paidO, prep: { readyAt: 1, collectedAt: 2 } }).board, 'done');
+assert.strictEqual(stage({ payment: { status: 'paid' }, delivery: { status: 'EXPIRED' } }).problem, 'Lalamove expired: add a tip or rebook');
+const { summarize } = require('../lib/insights');
+const sum = summarize([
+  { payment: { status: 'paid' }, totalSen: 10000, subtotalSen: 9000, discountSen: 500, deliverySen: 1500, fulfilment: 'delivery', deliveryOption: 'priority', delivery: { lalamoveOrderId: '1', feeRM: 12, priorityFeeRM: 5, attempts: 2 }, items: [{ unit: 'kg', qty: 1.5 }], customer: { phone: 'a' } },
+  { payment: { status: 'paid' }, totalSen: 5000, subtotalSen: 5000, discountSen: 0, deliverySen: 0, fulfilment: 'pickup', items: [{ unit: 'set', qty: 1 }], customer: { phone: 'b' } },
+  { payment: { status: 'pending' }, totalSen: 999, items: [], customer: {} },
+  { payment: { status: 'paid' }, cancelledAt: 1, totalSen: 777, items: [], customer: {} },
+]);
+assert.strictEqual(sum.salesSen, 15000); assert.strictEqual(sum.orders, 2); assert.strictEqual(sum.aovSen, 7500);
+assert.strictEqual(sum.lalamoveSen, 1700); assert.strictEqual(sum.deliveryDiffSen, -200); assert.strictEqual(sum.rebooked, 1);
+assert.strictEqual(sum.pickup, 1); assert.strictEqual(sum.priority, 1); assert.strictEqual(sum.unpaid, 1); assert.strictEqual(sum.cancelled, 1); assert.strictEqual(sum.kg, 1.5);
+console.log('✓ Order stages and insights');
+
 // ---- landscape label turned for the printer ----
 const { buildLabel } = require('../lib/label');
 const { PDFDocument } = require('pdf-lib');
@@ -128,5 +189,11 @@ const { PDFDocument } = require('pdf-lib');
   assert.deepStrictEqual(await size({ widthMm: 50, heightMm: 30, rotate90: true }), [30, 50], 'rotated page is portrait');
   assert.deepStrictEqual(await size({ widthMm: 50, heightMm: 30, rotate90: true, preview: true }), [50, 30], 'preview stays landscape');
   console.log('✓ Label page turned 90° for the printer');
+  // self-pickup and priority labels build
+  for (const o of [{ ...order, fulfilment: 'pickup', pickup: { at: '2026-11-10T07:30:00Z' } }, { ...order, deliveryOption: 'priority', delivery: { scheduleAt: '2026-11-10T07:30:00Z' } }]) {
+    const pdf = await buildLabel(o, { widthMm: 80, heightMm: 50, rotate90: true, qrUrl: 'HTTPS://ORDER.ALISFRESHMEATS.COM/S/AFM-1' });
+    assert.ok(pdf.length > 1000);
+  }
+  console.log('✓ Self-pickup and priority labels');
   console.log('All core tests passed');
 })().catch((e) => { console.error(e); process.exit(1); });

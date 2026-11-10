@@ -7,7 +7,7 @@ const lalamove = require('../lib/lalamove');
 const printnode = require('../lib/printnode');
 const { buildLabel } = require('../lib/label');
 const { body, send, ip, siteUrl, rid, safeEqual, handler, httpError } = require('../lib/http');
-const { fulfil, printLabel, bookDelivery, refreshDelivery, labelOptions, withCategories, addTip, reverseOrder } = require('../lib/fulfil');
+const { syncPayment, fulfil, printLabel, bookDelivery, refreshDelivery, labelOptions, withCategories, addTip, reverseOrder } = require('../lib/fulfil');
 const staff = require('../lib/staff');
 const { stage } = require('../lib/stage');
 const members = require('../lib/members');
@@ -172,8 +172,14 @@ const actions = {
     if (!o.payment.billId) throw httpError(400, 'This order has no Billplz bill.');
     const bill = await billplz.getBill(o.payment.billId);
     if (bill.paid === true || bill.state === 'paid') o = await fulfil(o.id, siteUrl(req), { paidAmountSen: Number(bill.paid_amount), source: 'manual check' });
-    else { store.addLog(o, `Payment checked: still ${bill.state}`); await store.saveOrder(o); }
-    return { order: detail(o), billState: bill.state };
+    else { store.addLog(o, `Payment checked with Billplz: bill ${o.payment.billId} is ${bill.state}`, 'payment', me?.name); await store.saveOrder(o); }
+    // Often the customer went back and paid a second checkout: point staff to it
+    let paidInstead = null;
+    if (bill.state !== 'paid') {
+      const near = (await store.listOrders(300)).filter((x) => x.id !== o.id && x.customer.phone === o.customer.phone && x.payment.status === 'paid' && Math.abs(x.createdAt - o.createdAt) < 6 * 3600000);
+      if (near.length) paidInstead = { no: near[0].no, id: near[0].id, at: near[0].payment.paidAt || near[0].createdAt };
+    }
+    return { order: detail(o), billState: bill.state, billId: o.payment.billId, paidInstead };
   },
 
 
@@ -182,6 +188,9 @@ const actions = {
     const [settings, orders, today] = await Promise.all([store.getSettings(), store.listOrders(300), insights({ range: 'today' })]);
     const stale = orders.filter((o) => ['ASSIGNING_DRIVER', 'ON_GOING', 'PICKED_UP'].includes(o.delivery?.status) && Date.now() - (o.delivery.checkedAt || o.delivery.bookedAt || 0) > 5 * 60000).slice(0, 3);
     for (const o of stale) { try { orders[orders.indexOf(o)] = await refreshDelivery(o); } catch (e) { console.warn('board refresh failed', o.no, e.message); } }
+    // unpaid checkouts from the last 6 hours: ask Billplz in case its payment notice never arrived
+    const unpaid = orders.filter((o) => o.payment.status === 'pending' && o.payment.billId && Date.now() - o.createdAt < 6 * 3600000).slice(0, 5);
+    for (const o of unpaid) { try { orders[orders.indexOf(o)] = await syncPayment(o, siteUrl(req)); } catch (e) { console.warn('payment check failed', o.no, e.message); } }
     const now = Date.now(); const st = shopOpen(settings, now); const todayDate = mytParts(now).date;
     const mine = orders.filter((o) => staff.sees(me, o));
     const todays = mine.filter((o) => mytParts(o.createdAt).date === todayDate);
@@ -659,8 +668,11 @@ const actions = {
 };
 
 function integrationStatus(req) {
+  const here = `https://${req.headers['x-forwarded-host'] || req.headers.host}`;
   return {
     site: siteUrl(req),
+    billplzCallback: `${siteUrl(req)}/api/billplz-callback`,
+    siteMismatch: process.env.SITE_URL && new URL(process.env.SITE_URL).host !== new URL(here).host ? process.env.SITE_URL : '',
     database: !!(process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL),
     billplz: billplz.configured() ? (billplz.sandbox() ? 'sandbox' : 'live') : false,
     lalamove: lalamove.configured() ? (lalamove.sandbox() ? 'sandbox' : 'live') : false,

@@ -264,7 +264,7 @@
   });
   const DONE = {
     'order.reprint': () => 'Label sent to printer', 'order.rebook': () => 'Lalamove booked', 'order.cancelDelivery': (r) => (r.result === 'gone' ? 'Not on your Lalamove account, marked as cancelled' : 'Lalamove cancelled'), 'order.refresh': () => 'Delivery updated',
-    'order.checkPayment': (r) => (r.billState === 'paid' ? 'Payment confirmed' : `Billplz says: ${r.billState}`), 'order.ready': (r) => (r.order.fulfilment === 'pickup' ? 'Marked ready. Customer notified.' : 'Marked packed'),
+    'order.checkPayment': (r) => (r.billState === 'paid' ? 'Payment confirmed' : `Billplz says this bill is not paid (${r.billState}).${r.paidInstead ? ` The same customer paid ${r.paidInstead.no} instead — this was an earlier try.` : ' If the customer says they paid, ask for the Billplz receipt and compare the bill number.'}`), 'order.ready': (r) => (r.order.fulfilment === 'pickup' ? 'Marked ready. Customer notified.' : 'Marked packed'),
     'order.collected': () => 'Marked collected', 'order.undoReady': () => 'Undone', 'order.cancel': () => 'Order cancelled', 'order.tip': () => 'Tip added on Lalamove', 'order.changeDriver': () => 'Lalamove is finding another driver',
   };
   async function tipFlow(id, btn) {
@@ -334,7 +334,7 @@
         ${o.pointsEarned && paid ? `<tr><td colspan="3" class="muted">Customer earned ${o.pointsEarned} points</td></tr>` : ''}
       </table></div>
       <div class="card"><dl class="kv">
-        <dt>Payment</dt><dd>${paid ? `<span class="ok">Paid</span> ${o.payment.paidAt ? fmtDT(o.payment.paidAt) : ''}` : `<span class="bad">${esc(o.payment.status)}</span>`}${o.payment.billId ? `<br><span class="muted">Billplz bill ${esc(o.payment.billId)}</span>` : ''}</dd>
+        <dt>Payment</dt><dd>${paid ? `<span class="ok">Paid</span> ${o.payment.paidAt ? fmtDT(o.payment.paidAt) : ''}` : `<span class="bad">${o.payment.status === 'pending' ? 'Not paid yet' : esc(o.payment.status)}</span>`}${o.payment.billId ? `<br><span class="muted">Billplz bill ${esc(o.payment.billId)}</span>${o.payment.billUrl ? ` · <a href="${esc(o.payment.billUrl)}" target="_blank" rel="noopener">open bill</a>` : ''}` : ''}</dd>
         ${pickup ? '' : `<dt>Lalamove</dt><dd>${d.lalamoveOrderId ? `#${esc(d.lalamoveOrderId)} · <b>${esc(d.status)}</b>` : d.status ? `<b>${esc(d.status)}</b>` : '<span class="muted">Not booked</span>'}
           ${d.error ? `<div class="warn">${esc(d.error)}</div>` : ''}
           ${d.feeRM != null ? `<br>Lalamove cost RM${costRM.toFixed(2)}${d.priorityFeeRM ? ` (incl. tip RM${Number(d.priorityFeeRM).toFixed(2)})` : ''} · customer paid ${rm(o.deliverySen)} <span class="${o.deliverySen / 100 - costRM >= 0 ? 'ok' : 'bad'}">(${o.deliverySen / 100 - costRM >= 0 ? '+' : '−'}RM${Math.abs(o.deliverySen / 100 - costRM).toFixed(2)})</span>` : ''}
@@ -844,7 +844,8 @@
   function renderStatus(st) {
     const item = (label, v, hint) => `<div><b>${label}</b><br>${v ? `<span class="ok">✓ ${v === true ? 'Connected' : esc(v)}</span>` : `<span class="bad">Not set</span> <span class="muted">${hint}</span>`}</div>`;
     $('#status').innerHTML = item('Database', st.database, 'Add the Upstash Redis keys') + item('Billplz', st.billplz, 'BILLPLZ_* keys') + item('Lalamove', st.lalamove, 'LALAMOVE_* keys') +
-      item('PrintNode', st.printnode, 'PRINTNODE_API_KEY') + item('Google Maps', st.maps, 'Optional. The free OpenStreetMap map is used without it') + item('Lalamove webhook secret', st.lalamoveWebhookSecret, 'LALAMOVE_WEBHOOK_SECRET');
+      item('PrintNode', st.printnode, 'PRINTNODE_API_KEY') + item('Google Maps', st.maps, 'Optional. The free OpenStreetMap map is used without it') + item('Lalamove webhook secret', st.lalamoveWebhookSecret, 'LALAMOVE_WEBHOOK_SECRET')
+      + `<div style="grid-column:1/-1"><b>Billplz payment notices go to</b><br><span class="muted">${esc(st.billplzCallback || '')}</span>${st.siteMismatch ? `<div class="warn">SITE_URL in Hostinger is ${esc(st.siteMismatch)}, but this dashboard is on ${esc(location.host)}. Billplz sends payment notices to SITE_URL, so set it to https://${esc(location.host)} and redeploy.</div>` : ''}</div>`;
   }
   function renderSettings() {
     const f = $('#settingsForm');

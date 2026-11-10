@@ -120,6 +120,10 @@ global.fetch = async (url, opts = {}) => {
 async function mockBillplzPage(req, res, id, action) {
   const bill = mock.bills.get(id);
   if (!bill) { res.statusCode = 404; return res.end('no bill'); }
+  if (action === 'paysilent') { // demo: paid at Billplz, but its notice never reaches us
+    Object.assign(bill, { paid: true, state: 'paid', paid_amount: bill.amount });
+    res.setHeader('Content-Type', 'application/json'); return res.end('{"ok":true}');
+  }
   if (action === 'pay' || action === 'fail') {
     const paid = action === 'pay';
     if (paid) Object.assign(bill, { paid: true, state: 'paid', paid_amount: bill.amount });
@@ -158,7 +162,7 @@ const server = http.createServer(async (req, res) => {
   const u = new URL(req.url, LOCAL);
   let m;
   try {
-    if ((m = u.pathname.match(/^\/__mock\/billplz\/(\w+)(?:\/(pay|fail))?$/))) return await mockBillplzPage(req, res, m[1], m[2]);
+    if ((m = u.pathname.match(/^\/__mock\/billplz\/(\w+)(?:\/(pay|fail|paysilent))?$/))) return await mockBillplzPage(req, res, m[1], m[2]);
     if ((m = u.pathname.match(/^\/__mock\/lalamove\/advance\/(\d+)$/))) return await mockAdvance(req, res, m[1]);
     if (u.pathname === '/__mock/calls') { res.setHeader('Content-Type', 'application/json'); return res.end(JSON.stringify({ calls: mock.calls, llm: [...mock.llm.values()].map((o) => ({ orderId: o.orderId, status: o.status, remarks: o.remarks, metadata: o.metadata, tier: o.tier, priorityFee: o.priorityFee || '', changedDriver: o.changedDriver || '', driverId: o.driverId })) })); }
     // demo: a booking Lalamove doesn't know (like one made with sandbox keys before going live)

@@ -1,7 +1,7 @@
 // GET /api/order?id=…&t=… — the customer's order status page (needs the private token from their link).
 const store = require('../lib/store');
-const { query, send, safeEqual, handler } = require('../lib/http');
-const { refreshDelivery } = require('../lib/fulfil');
+const { query, send, safeEqual, siteUrl, handler } = require('../lib/http');
+const { refreshDelivery, syncPayment } = require('../lib/fulfil');
 const { stage } = require('../lib/stage');
 const lalamove = require('../lib/lalamove');
 
@@ -12,6 +12,10 @@ module.exports = handler(async (req, res) => {
   let order = await store.getOrder(q.id);
   if (!order || !safeEqual(order.token, q.t)) return send(res, 404, { error: 'Order not found' });
 
+  // Backup for a missed Billplz callback: while unpaid (first 6 hours), ask Billplz directly.
+  if (order.payment.status === 'pending' && Date.now() - order.createdAt < 6 * 3600000) {
+    try { order = await syncPayment(order, siteUrl(req)); } catch (e) { console.warn('payment check failed', e.message); }
+  }
   // Backup for missed webhooks: refresh from Lalamove at most once a minute while the delivery is live.
   const d = order.delivery || {};
   if (d.lalamoveOrderId && LIVE.includes(d.status) && Date.now() - (d.checkedAt || 0) > 60000) {

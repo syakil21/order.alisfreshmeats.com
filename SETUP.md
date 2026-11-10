@@ -118,7 +118,8 @@ The dashboard (`/admin.html`) works like a food-delivery merchant app. Log in wi
 | Lalamove still finding a driver after ~10 min | Click **Add tip** (e.g. RM3). It keeps the original booking and price; don't cancel and rebook. |
 | Driver accepted but is late or not answering | Open the order → **Change driver** (allowed 15 min after the driver accepted, before pickup; free, same price). |
 | ⚠ Lalamove booking failed / expired / rejected | Read the error (often a low wallet balance). Open the order → **Check new price** shows today's price next to what the customer paid → **Rebook**. |
-| Customer says they paid but the order shows Unpaid | Open the order and click **Check payment with Billplz**. If Billplz confirms payment, it books the delivery and prints the label. |
+| Customer says they paid but the order shows Unpaid | The app now asks Billplz by itself (while the customer's order page is open, and from the dashboard for checkouts in the last 6 hours). You can also open the order → **Check payment with Billplz**. If Billplz says the bill is still **due**, the customer paid a different checkout (the dashboard names it), or compare the bill number on their receipt. |
+| Activity shows "wrong X Signature" | The **BILLPLZ_X_SIGNATURE_KEY** in Hostinger doesn't match Billplz (Billplz → Settings → X Signature). Payments still go through because the app re-checks with Billplz, but fix the key and redeploy. |
 | Need to stop orders (holiday, too busy) | **Home** → turn the switch off, or **Pause** for a while. |
 | Need to cancel a paid order | Open it → **Cancel order…**, then refund the customer in Billplz or by bank transfer. Points are returned automatically. |
 

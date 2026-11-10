@@ -63,6 +63,26 @@ const SAMPLE_ORDER = {
     { name: 'Head', qty: 1, unit: 'set' },
   ],
 };
+// Cancel the order's Lalamove booking if it's still live. A booking Lalamove doesn't have (test keys, removed)
+// counts as cancelled. Any other failure stops the action, unless a super admin chose to go ahead anyway (force).
+async function stopLalamove(o, me, why, force) {
+  const d = o.delivery || {};
+  if (!d.lalamoveOrderId || !['ASSIGNING_DRIVER', 'ON_GOING'].includes(d.status)) return 'none';
+  try {
+    await lalamove.cancelOrder(d.lalamoveOrderId); d.status = 'CANCELED';
+    store.addLog(o, `Lalamove #${d.lalamoveOrderId} cancelled${why ? ` (${why})` : ''}`, 'staff', me?.name);
+    return 'cancelled';
+  } catch (e) {
+    if (lalamove.isGone(e)) {
+      d.status = 'NOT_FOUND';
+      store.addLog(o, `Lalamove #${d.lalamoveOrderId} not found on this Lalamove account (made with test keys, or removed), so nothing to cancel`, 'staff', me?.name);
+      return 'gone';
+    }
+    if (!force) throw httpError(409, `Lalamove could not cancel this delivery: ${e.message}`);
+    store.addLog(o, `Lalamove #${d.lalamoveOrderId} NOT cancelled (${e.message}). Check it in the Lalamove app.`, 'staff', me?.name);
+    return 'failed';
+  }
+}
 const staffLog = (me, msg, extra = {}) => activity.log('staff', `${msg} · ${me?.name || 'staff'}`, { by: me?.name || '', ...extra });
 async function getOrderOr404(id) { const o = await store.getOrder(id); if (!o) throw httpError(404, 'Order not found'); return o; }
 const MAX_IMAGE_BYTES = 700 * 1024;
@@ -124,11 +144,10 @@ const actions = {
   },
   async 'order.cancelDelivery'(b, req, me) {
     const o = await store.getOrder(b.id); if (!o?.delivery?.lalamoveOrderId) throw httpError(400, 'No Lalamove delivery to cancel.');
-    try { await lalamove.cancelOrder(o.delivery.lalamoveOrderId); } catch (e) { throw httpError(400, e.message); }
-    o.delivery.status = 'CANCELED';
-    store.addLog(o, `Lalamove #${o.delivery.lalamoveOrderId} cancelled`, 'staff', me?.name);
+    if (!['ASSIGNING_DRIVER', 'ON_GOING'].includes(o.delivery.status)) throw httpError(400, `This delivery can't be cancelled now (${o.delivery.status}).`);
+    const r = await stopLalamove(o, me, '', false);
     await store.saveOrder(o);
-    return { order: detail(o) };
+    return { order: detail(o), result: r };
   },
   async 'order.refresh'(b, req, me) {
     let o = await store.getOrder(b.id); if (!o) throw httpError(404, 'Order not found');
@@ -149,6 +168,8 @@ const actions = {
   // ---- home: store switch, today's numbers and the order board ----
   async home(b, req, me) {
     const [settings, orders, today] = await Promise.all([store.getSettings(), store.listOrders(300), insights({ range: 'today' })]);
+    const stale = orders.filter((o) => ['ASSIGNING_DRIVER', 'ON_GOING', 'PICKED_UP'].includes(o.delivery?.status) && Date.now() - (o.delivery.checkedAt || o.delivery.bookedAt || 0) > 5 * 60000).slice(0, 3);
+    for (const o of stale) { try { orders[orders.indexOf(o)] = await refreshDelivery(o); } catch (e) { console.warn('board refresh failed', o.no, e.message); } }
     const now = Date.now(); const st = shopOpen(settings, now); const todayDate = mytParts(now).date;
     const board = orders.filter((o) => {
       const b = stage(o).board;
@@ -215,10 +236,7 @@ const actions = {
   async 'order.cancel'(b, req, me) {
     const o = await getOrderOr404(b.id);
     if (o.cancelledAt) throw httpError(400, 'Already cancelled.');
-    const d = o.delivery || {};
-    if (d.lalamoveOrderId && !lalamove.FINAL_FAIL.includes(d.status) && d.status !== 'COMPLETED') {
-      try { await lalamove.cancelOrder(d.lalamoveOrderId); d.status = 'CANCELED'; } catch (e) { throw httpError(400, `Cancel the Lalamove delivery first: ${e.message}`); }
-    }
+    await stopLalamove(o, me, 'order cancelled', !!b.force);
     o.cancelledAt = Date.now(); o.cancelReason = str(b.reason, 200);
     await reverseOrder(o);
     store.addLog(o, `Order cancelled${o.cancelReason ? `: ${o.cancelReason}` : ''}${o.payment.status === 'paid' ? `. Refund RM${rm(o.totalSen)} to the customer.` : ''}`, 'staff', me?.name);
@@ -331,11 +349,7 @@ const actions = {
   async 'order.delete'(b, req, me) {
     const o = await getOrderOr404(b.id);
     if (o.deletedAt) throw httpError(400, 'Already deleted.');
-    const d = o.delivery || {};
-    if (d.lalamoveOrderId && ['ASSIGNING_DRIVER', 'ON_GOING'].includes(d.status)) {
-      try { await lalamove.cancelOrder(d.lalamoveOrderId); d.status = 'CANCELED'; store.addLog(o, `Lalamove #${d.lalamoveOrderId} cancelled (order deleted)`, 'staff', me.name); }
-      catch (e) { throw httpError(400, `Could not cancel the Lalamove delivery: ${e.message}. Cancel it in Lalamove first.`); }
-    }
+    await stopLalamove(o, me, 'order deleted', !!b.force);
     await reverseOrder(o);
     const reason = str(b.reason, 200);
     Object.assign(o, { deletedAt: Date.now(), deletedBy: me.name, deleteReason: reason });

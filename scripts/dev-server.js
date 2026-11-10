@@ -161,6 +161,9 @@ const server = http.createServer(async (req, res) => {
     if ((m = u.pathname.match(/^\/__mock\/billplz\/(\w+)(?:\/(pay|fail))?$/))) return await mockBillplzPage(req, res, m[1], m[2]);
     if ((m = u.pathname.match(/^\/__mock\/lalamove\/advance\/(\d+)$/))) return await mockAdvance(req, res, m[1]);
     if (u.pathname === '/__mock/calls') { res.setHeader('Content-Type', 'application/json'); return res.end(JSON.stringify({ calls: mock.calls, llm: [...mock.llm.values()].map((o) => ({ orderId: o.orderId, status: o.status, remarks: o.remarks, metadata: o.metadata, tier: o.tier, priorityFee: o.priorityFee || '', changedDriver: o.changedDriver || '', driverId: o.driverId })) })); }
+    // demo: a booking Lalamove doesn't know (like one made with sandbox keys before going live)
+    if ((m = u.pathname.match(/^\/__mock\/lalamove\/forget\/(\d+)$/))) { mock.llm.delete(m[1]); res.setHeader('Content-Type', 'application/json'); return res.end('{"ok":true}'); }
+    if ((m = u.pathname.match(/^\/__mock\/lalamove\/status\/(\d+)\/(\w+)$/))) { const o = mock.llm.get(m[1]); if (o) o.status = m[2]; res.setHeader('Content-Type', 'application/json'); return res.end(JSON.stringify({ status: o?.status })); }
     if ((m = u.pathname.match(/^\/__mock\/lalamove\/expire\/(\d+)$/))) { const o = mock.llm.get(m[1]); if (o) o.status = 'EXPIRED'; res.setHeader('Content-Type', 'application/json'); return res.end(JSON.stringify({ status: o?.status })); }
     if ((m = u.pathname.match(/^\/s\/([\w-]+)$/i))) { req.url = `/api/s?no=${m[1]}`; return await require(path.join(__dirname, '..', 'api', 's.js'))(req, res); }
     if ((m = u.pathname.match(/^\/api\/([\w-]+)$/))) {

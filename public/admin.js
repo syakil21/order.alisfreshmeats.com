@@ -14,7 +14,7 @@
   const mins = (ts) => Math.max(0, Math.round((Date.now() - ts) / 60000));
   const qtyText = (q, u) => (u === 'kg' ? `${q} kg` : u === 'set' ? `${q} ${q > 1 ? 'sets' : 'set'}` : `${q} ${q > 1 ? 'pcs' : 'pc'}`);
   const prettyPhone = (p) => String(p || '').replace(/^\+60/, '0');
-  const FAIL = ['BOOKING_FAILED', 'CANCELED', 'CANCELLED', 'REJECTED', 'EXPIRED'];
+  const FAIL = ['BOOKING_FAILED', 'CANCELED', 'CANCELLED', 'REJECTED', 'EXPIRED', 'NOT_FOUND'];
   let token = ls.get('afm_admin');
   let me = (() => { try { return JSON.parse(ls.get('afm_admin_me') || 'null'); } catch { return null; } })();
   const isSuper = () => me?.role === 'super';
@@ -24,7 +24,7 @@
     const r = await fetch('/api/admin', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) }, body: JSON.stringify({ action, ...data }) });
     const d = await r.json().catch(() => ({}));
     if (r.status === 401 && action !== 'login') { showLogin(); throw new Error(d.error || 'Please log in'); }
-    if (!r.ok) throw new Error(d.error || 'Something went wrong');
+    if (!r.ok) { const e = new Error(d.error || 'Something went wrong'); e.status = r.status; throw e; }
     return d;
   }
   async function busy(btn, fn) {
@@ -196,7 +196,7 @@
     if (ds === 'ON_GOING') return `Driver ${esc(o.driver || '')} coming to shop${o.readyAt ? ' · packed' : ''}`;
     if (ds === 'PICKED_UP') return `On the way with ${esc(o.driver || 'driver')}`;
     if (ds === 'COMPLETED') return 'Delivered';
-    if (FAIL.includes(ds)) return `Lalamove ${ds.toLowerCase().replace('_', ' ')}`;
+    if (FAIL.includes(ds)) return ds === 'NOT_FOUND' ? 'Lalamove booking not found' : `Lalamove ${ds.toLowerCase().replace('_', ' ')}`;
     return o.stageText;
   }
   function cardActions(o) {
@@ -260,7 +260,7 @@
     const card = e.target.closest('[data-oid]'); if (card) openOrder(card.dataset.oid);
   });
   const DONE = {
-    'order.reprint': () => 'Label sent to printer', 'order.rebook': () => 'Lalamove booked', 'order.cancelDelivery': () => 'Lalamove cancelled', 'order.refresh': () => 'Delivery updated',
+    'order.reprint': () => 'Label sent to printer', 'order.rebook': () => 'Lalamove booked', 'order.cancelDelivery': (r) => (r.result === 'gone' ? 'Not on your Lalamove account, marked as cancelled' : 'Lalamove cancelled'), 'order.refresh': () => 'Delivery updated',
     'order.checkPayment': (r) => (r.billState === 'paid' ? 'Payment confirmed' : `Billplz says: ${r.billState}`), 'order.ready': (r) => (r.order.fulfilment === 'pickup' ? 'Marked ready. Customer notified.' : 'Marked packed'),
     'order.collected': () => 'Marked collected', 'order.undoReady': () => 'Undone', 'order.cancel': () => 'Order cancelled', 'order.tip': () => 'Tip added on Lalamove', 'order.changeDriver': () => 'Lalamove is finding another driver',
   };
@@ -350,7 +350,14 @@
       if (act === 'delete') {
         const why = prompt(`Delete ${o.no} (${o.customer.name}, ${rm(o.totalSen)})?\n\nIt disappears from orders and sales${o.payment.status === 'paid' ? ', stock and points are put back' : ''}. The record stays in the Activity log.\n\nReason:`, 'Test order');
         if (why == null) return;
-        return busy(b, async () => { await api('order.delete', { id: o.id, reason: why }); toast(`${o.no} deleted`); closeDrawer(); deletedOrders = null; await loadHome(); });
+        return busy(b, async () => {
+          try { await api('order.delete', { id: o.id, reason: why }); }
+          catch (e) {
+            if (e.status !== 409 || !confirm(`${e.message}\n\nDelete the order anyway? If the delivery is still live, cancel it in the Lalamove app.`)) throw e;
+            await api('order.delete', { id: o.id, reason: why, force: true });
+          }
+          toast(`${o.no} deleted`); closeDrawer(); deletedOrders = null; await loadHome();
+        });
       }
       if (b.dataset.confirm && !confirm(b.dataset.confirm)) return;
       if (act === 'order.tip') extra.amountRM = Number($('#tipAmt').value);
@@ -366,7 +373,12 @@
         $('#doRebook').onclick = (ev) => busy(ev.target, async () => { const x = await api('order.rebook', { id: o.id }); if (openId === o.id) renderOrder(x.order); toast('Lalamove booked'); loadHome(); });
       });
       busy(b, async () => {
-        const r = await api(act, { id: o.id, ...extra });
+        let r;
+        try { r = await api(act, { id: o.id, ...extra }); }
+        catch (e) {
+          if (act !== 'order.cancel' || e.status !== 409 || !confirm(`${e.message}\n\nCancel the order anyway? If the delivery is still live, cancel it in the Lalamove app.`)) throw e;
+          r = await api(act, { id: o.id, ...extra, force: true });
+        }
         if (openId === o.id && r.order) renderOrder(r.order);
         toast(DONE[act]?.(r) || 'Done');
         loadHome();

@@ -171,7 +171,8 @@ const paidO = { payment: { status: 'paid' }, delivery: {}, fulfilment: 'pickup',
 assert.strictEqual(stage(paidO).board, 'preparing');
 assert.strictEqual(stage({ ...paidO, prep: { readyAt: 1 } }).key, 'ready');
 assert.strictEqual(stage({ ...paidO, prep: { readyAt: 1, collectedAt: 2 } }).board, 'done');
-assert.strictEqual(stage({ payment: { status: 'paid' }, delivery: { status: 'EXPIRED' } }).problem, 'Lalamove expired: add a tip or rebook');
+assert.strictEqual(stage({ payment: { status: 'paid' }, delivery: { status: 'EXPIRED' } }).problem, 'Lalamove expired: rebook');
+assert.strictEqual(stage({ payment: { status: 'paid' }, delivery: { status: 'NOT_FOUND' } }).problem, 'Lalamove booking not found: rebook');
 const { summarize } = require('../lib/insights');
 const sum = summarize([
   { payment: { status: 'paid' }, totalSen: 10000, subtotalSen: 9000, discountSen: 500, deliverySen: 1500, fulfilment: 'delivery', deliveryOption: 'priority', delivery: { lalamoveOrderId: '1', feeRM: 12, priorityFeeRM: 5, attempts: 2 }, items: [{ unit: 'kg', qty: 1.5 }], customer: { phone: 'a' } },

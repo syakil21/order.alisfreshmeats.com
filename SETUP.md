@@ -101,6 +101,7 @@ The dashboard (`/admin.html`) works like a food-delivery merchant app. Log in wi
 - Card buttons: **Ready for pickup** (the customer gets a notification), **Collected**, **Packed**, **Add tip**, **Change driver**, **Rebook**, **Reprint**.
 - Click **Order sound** once so new paid orders chime. **New-order alerts on this phone** sends a phone notification for every paid order, even when the dashboard is closed.
 - Scanning the **QR code on a label** opens that order.
+- **Menu sections** (super admin): next to each section title (Local Fresh Meat, Imported Mutton, Lamb Selection) use **✎ Rename**, **↑ ↓** to reorder, or **+ Item** to add an item to it. Changes show on the shop straight away. The sticker tag is the first word of the section name.
 - **Menu**: switch an item off when it's sold out (saves at once). Tap the **stock tag** to enter how many you have. Super admins tap an item to change its price, photo or cutting choices.
 - **Staff** (super admin): give each person their own login, and choose their **branch** (Selayang only, Brickfields only, or all). Branch staff only see, print and handle that branch's orders, and their phone alerts are only for that branch.
 - **Staff** accounts: **Staff** can see orders, print, tip / change driver / cancel / rebook Lalamove, call or WhatsApp customers, and update sold-out and stock. **Super admin** can also edit and delete orders, change prices and settings, and see Insights, Customers, Promotions and Activity. Every change is logged with the person's name.

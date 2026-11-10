@@ -184,6 +184,11 @@
     .mi .pr { font-weight:800; font-variant-numeric:tabular-nums; white-space:nowrap; }
     .mi.off .nm, .mi.off .pr { opacity:.5; }
     .catname { font-size:13px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); margin:6px 0 4px; }
+    .cathead { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:14px 0 4px; padding-bottom:6px; border-bottom:1.5px solid var(--line); }
+    .cathead:first-child { margin-top:2px; }
+    .cathead .catname { margin:0; flex:1; color:var(--ink); font-size:14px; }
+    .catbtns { display:flex; gap:6px; flex-wrap:wrap; }
+    .catbtns .btn.sm { padding:4px 9px; font-size:12.5px; }
     .sw-sm { position:relative; width:46px; height:26px; flex:none; }
     .sw-sm input { position:absolute; inset:0; opacity:0; margin:0; cursor:pointer; z-index:1; }
     .sw-sm i { position:absolute; inset:0; border-radius:999px; background:#cfc8bd; transition:background .2s; }
@@ -268,7 +273,7 @@
       <!-- MENU -->
       <section class="page hidden" data-view="menu">
         <div class="ph"><h1>Menu</h1><button class="btn" id="addProduct" type="button">+ Add item</button><button class="btn pri" id="saveProducts" type="button">Save changes</button></div>
-        <p class="muted" style="margin-top:-6px">Turn the switch off when an item is sold out (saves straight away). Tap the stock tag to update how many you have; it goes down by itself when orders are paid. Super admins tap an item to change its price, photo or cutting choices.</p>
+        <p class="muted" style="margin-top:-6px">Turn the switch off when an item is sold out (saves straight away). Tap a stock tag to update how many that shop has; it goes down by itself when orders are paid. Super admins tap an item to change its price, photo or cutting choices, and use ✎ Rename / ↑ ↓ on a section title to rename or reorder it.</p>
         <div class="card" id="menuList"></div>
         <input type="file" id="photoFile" accept="image/*" hidden>
       </section>
@@ -465,6 +470,6 @@
     <div class="drawer" id="drawer"><div class="scrim" data-close></div><div class="panel" id="drawerBody"></div></div>
   </div>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script src="/admin.js?v=15"></script>
+  <script src="/admin.js?v=16"></script>
 </body>
 </html>

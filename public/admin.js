@@ -276,7 +276,11 @@
   // ---------- order drawer ----------
   let openId = null;
   function openDrawerHTML(html) { $('#drawer').classList.add('show'); $('#drawerBody').innerHTML = html; }
-  function closeDrawer() { $('#drawer').classList.remove('show'); openId = null; if (/^#(order|no)=/.test(location.hash)) window.history.replaceState(null, '', location.pathname); }
+  let blankItem = null; // a new menu item left without a name is dropped when its drawer closes
+  function closeDrawer() {
+    if (blankItem && !blankItem.id && !String(blankItem.name || '').trim()) { products = products.filter((x) => x !== blankItem); renderProducts(); }
+    blankItem = null;
+    $('#drawer').classList.remove('show'); openId = null; if (/^#(order|no)=/.test(location.hash)) window.history.replaceState(null, '', location.pathname); }
   $('#drawer').addEventListener('click', (e) => { if (e.target.closest('[data-close]')) closeDrawer(); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDrawer(); });
 
@@ -449,7 +453,11 @@
   function renderProducts() {
     $('#saveProducts').textContent = dirty ? 'Save changes •' : 'Save changes';
     const cats = [...new Set(products.map((p) => p.category))];
-    $('#menuList').innerHTML = cats.map((c) => `<div class="catname">${esc(c)}</div>` + products.map((p, i) => [p, i]).filter(([p]) => p.category === c).map(([p, i]) => `
+    $('#menuList').innerHTML = cats.map((c, ci) => `<div class="cathead"><span class="catname">${esc(c)}</span>${isSuper() ? `<span class="catbtns">
+        <button type="button" class="btn sm" data-catrename="${ci}" title="Rename this section">✎ Rename</button>
+        <button type="button" class="btn sm" data-catmove="${ci}" data-dir="-1" title="Move section up" ${ci === 0 ? 'disabled' : ''}>↑</button>
+        <button type="button" class="btn sm" data-catmove="${ci}" data-dir="1" title="Move section down" ${ci === cats.length - 1 ? 'disabled' : ''}>↓</button>
+        <button type="button" class="btn sm" data-catadd="${ci}" title="Add an item to this section">+ Item</button></span>` : ''}</div>` + products.map((p, i) => [p, i]).filter(([p]) => p.category === c).map(([p, i]) => `
       <div class="mi ${p.available ? '' : 'off'}" data-i="${i}">
         <div class="ph2">${p.image ? `<img src="/api/image?id=${esc(p.image)}" alt="">` : 'No photo'}</div>
         <div class="nm" data-editp="${i}"><b>${esc(p.name || '(new item)')}</b><span>${[p.note, (p.cutModes || []).length ? '✂ ' + p.cutModes.map((m) => MODES.find((x) => x[0] === m)?.[1].split(' (')[0].toLowerCase()).join(', ') : ''].filter(Boolean).map(esc).join(' · ')}</span></div>
@@ -466,6 +474,32 @@
     catch (err) { toast(err.message); e.target.checked = !e.target.checked; }
   });
   $('#menuList').addEventListener('click', (e) => {
+    const cats = [...new Set(products.map((p) => p.category))];
+    const rn = e.target.closest('[data-catrename]');
+    if (rn) {
+      const old = cats[Number(rn.dataset.catrename)];
+      const v = prompt(`Rename the section “${old}” to:\n\nThe shop menu and new stickers use the new name (the sticker tag is its first word, e.g. LOCAL).`, old);
+      if (v == null || !v.trim() || v.trim() === old) return;
+      for (const p of products) if (p.category === old) p.category = v.trim().slice(0, 60);
+      markDirty(); renderProducts();
+      return saveProducts(rn, `Renamed to “${v.trim()}”. The shop is updated.`);
+    }
+    const mv = e.target.closest('[data-catmove]');
+    if (mv) {
+      const i = Number(mv.dataset.catmove); const j = i + Number(mv.dataset.dir);
+      if (j < 0 || j >= cats.length) return;
+      [cats[i], cats[j]] = [cats[j], cats[i]];
+      products = cats.flatMap((c) => products.filter((p) => p.category === c));
+      markDirty(); renderProducts();
+      return saveProducts(mv, 'Section moved. The shop is updated.');
+    }
+    const ad = e.target.closest('[data-catadd]');
+    if (ad) {
+      const c = cats[Number(ad.dataset.catadd)];
+      const last = products.map((p) => p.category).lastIndexOf(c);
+      products.splice(last + 1, 0, { category: c, name: '', note: '', price: 0, unit: 'kg', step: 0.5, min: 0.5, cutModes: [], cooking: false, stock: null, image: '', available: true });
+      markDirty(); renderProducts(); return editProduct(last + 1);
+    }
     const st = e.target.closest('[data-stock]'); if (st) return askStock(products[Number(st.dataset.stock)], st.dataset.br);
     const n = e.target.closest('[data-editp]'); if (n && isSuper()) editProduct(Number(n.dataset.editp));
   });
@@ -484,6 +518,7 @@
   }
   function editProduct(i) {
     const p = products[i];
+    blankItem = p.id ? null : p;
     openDrawerHTML(`
       <div class="row"><h2 class="grow" style="margin:0;font:600 20px Oswald,sans-serif;text-transform:uppercase">${esc(p.name || 'New item')}</h2><button class="btn sm" data-close>Done</button></div>
       <div class="card" style="margin-top:12px">
@@ -556,7 +591,7 @@
     products.push({ category: products.at(-1)?.category || 'Other', name: '', note: '', price: 0, unit: 'kg', step: 0.5, min: 0.5, cutModes: [], cooking: false, stock: null, image: '', available: true });
     markDirty(); renderProducts(); editProduct(products.length - 1);
   });
-  async function saveProducts(btn) { return busy(btn, async () => { products = (await api('products.save', { products })).products; dirty = false; renderProducts(); toast('Menu saved. The shop is updated.'); }); }
+  async function saveProducts(btn, msg) { return busy(btn, async () => { products = (await api('products.save', { products })).products; dirty = false; renderProducts(); toast(msg || 'Menu saved. The shop is updated.'); }); }
   $('#saveProducts').addEventListener('click', (e) => saveProducts(e.target));
   window.addEventListener('beforeunload', (e) => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
 

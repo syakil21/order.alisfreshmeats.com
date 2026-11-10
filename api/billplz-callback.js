@@ -21,7 +21,7 @@ module.exports = handler(async (req, res) => {
     await fulfil(orderId, siteUrl(req), { paidAmountSen: Number(p.paid_amount || p.amount), source: 'callback' });
   } else {
     const order = await store.getOrder(orderId);
-    if (order && order.payment.status === 'pending') { store.addLog(order, `Billplz reported unpaid (${p.state})`); await store.saveOrder(order); }
+    if (order && ['pending', 'replaced'].includes(order.payment.status)) { store.addLog(order, `Billplz reported unpaid (${p.state})`); await store.saveOrder(order); }
   }
   send(res, 200, 'OK');
 });

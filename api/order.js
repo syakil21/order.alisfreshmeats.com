@@ -36,6 +36,7 @@ module.exports = handler(async (req, res) => {
     pointsUsed: order.pointsUsed || 0, pointsSen: order.pointsSen || 0, pointsEarned: order.pointsEarned || 0,
     paid: order.payment.status === 'paid',
     payUrl: order.payment.status === 'pending' ? order.payment.billUrl : '',
+    replacedBy: order.payment.status === 'replaced' && order.replacedBy?.id ? await (async () => { const r = await store.getOrder(order.replacedBy.id); return r ? { no: r.no, link: `/order.html?id=${r.id}&t=${r.token}` } : null; })() : null,
     stage: s.key, stageText: s.text,
     pickupAt: pickup ? order.pickup?.at || null : del.scheduleAt || null,
     trackUrl: del.lalamoveOrderId && !lalamove.FINAL_FAIL.includes(del.status) ? del.shareLink || '' : '',

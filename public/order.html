@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Oswald:wght@500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/styles.css?v=17">
+  <link rel="stylesheet" href="/styles.css?v=18">
 </head>
 <body>
   <header class="top">
@@ -24,7 +24,7 @@
     </div>
   </header>
   <main class="wrap" id="root"><div class="spinner" aria-label="Loading"></div></main>
-  <script src="/app.js?v=17"></script>
+  <script src="/app.js?v=18"></script>
   <script>
   (() => {
     const $ = (s) => document.querySelector(s);
@@ -64,7 +64,10 @@
         return `<li class="${cls}">${label}${sub ? `<small>${sub}</small>` : ''}</li>`;
       };
       let head, body = '';
-      if (!o.paid) {
+      if (!o.paid && o.replacedBy) {
+        head = `<h2>Replaced by your newer order</h2><p class="sub">Order ${esc(o.no)} was not paid. You checked out again as ${esc(o.replacedBy.no)}.</p>`;
+        body = `<a class="bigbtn" href="${esc(o.replacedBy.link)}">Go to order ${esc(o.replacedBy.no)}</a>`;
+      } else if (!o.paid) {
         head = `<h2>${unpaidReturn ? 'Payment not completed' : 'Waiting for payment'}</h2><p class="sub">Order ${esc(o.no)} is saved. Complete payment to confirm it.</p>`;
         if (o.payUrl) body = `<a class="bigbtn" href="${esc(o.payUrl)}">Complete payment · ${rm(o.totalSen)}</a>`;
         body += `<a class="bigbtn alt" href="/#cart">Change my order</a>`;

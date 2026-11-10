@@ -5,6 +5,7 @@ const billplz = require('../lib/billplz');
 const members = require('../lib/members');
 const { body, send, ip, siteUrl, rid, handler } = require('../lib/http');
 const { buildQuote } = require('../lib/quote');
+const { syncPayment } = require('../lib/fulfil');
 const { shopOpen, distanceKm } = require('../lib/util');
 
 const bad = (res, error) => send(res, 400, { error });
@@ -41,6 +42,27 @@ module.exports = handler(async (req, res) => {
   if (b.usePoints && !q.points.used) return bad(res, 'Your points cannot be used on this order. Please refresh and try again.');
   if (q.totalSen < 100) return bad(res, 'The amount to pay must be at least RM1.00.');
 
+  // Pressing Pay again (e.g. back from the bank page): reuse the same unpaid bill if nothing changed,
+  // otherwise mark the earlier unpaid checkout(s) as replaced so they don't look like missing payments.
+  const sig = JSON.stringify([q.lines.map((l) => [l.productId, l.qty, l.cut || null]), q.fulfilment, q.deliveryOption, q.branch?.id, q.pickupAt || '', q.totalSen,
+    pickup ? '' : [Number(parseFloat(a.lat).toFixed(5)), Number(parseFloat(a.lng).toFixed(5))]]);
+  const earlier = (await store.listOrders(80)).filter((o) => o.customer?.phone === phone && o.payment?.status === 'pending' && !o.deletedAt && Date.now() - o.createdAt < 2 * 3600000);
+  const same = earlier.find((o) => o.checkoutSig === sig && o.payment.billUrl);
+  if (same) {
+    try {
+      const bill = await billplz.getBill(same.payment.billId);
+      if (bill.state === 'due') {
+        store.addLog(same, 'Customer pressed Pay again with the same order; same Billplz bill reused');
+        await store.saveOrder(same);
+        return send(res, 200, { paymentUrl: same.payment.billUrl, orderId: same.id, token: same.token });
+      }
+      if (bill.state === 'paid') { // paid a moment ago: record it, and don't make a second bill
+        const done = await syncPayment(same, siteUrl(req), { force: true });
+        return send(res, 200, { paymentUrl: `/order.html?id=${done.id}&t=${done.token}`, orderId: done.id, token: done.token });
+      }
+    } catch (e) { console.warn('bill reuse check failed', e.message); }
+  }
+
   const seq = await db.incr('orderseq');
   const order = {
     id: rid(9), token: rid(12), no: `AFM-${1000 + seq}`, createdAt: Date.now(),
@@ -57,7 +79,7 @@ module.exports = handler(async (req, res) => {
     pointsUsed: q.points.used || 0, pointsSen: q.points.sen || 0, pointsEarned: member ? q.points.earned || 0 : 0,
     deliverySen: q.deliverySen, deliveryQuoteRM: q.deliveryQuoteRM || 0, totalSen: q.totalSen,
     weightKg: q.weightKg, distanceKm: q.distanceKm,
-    payment: { status: 'pending' }, print: {}, delivery: {}, prep: {}, log: [],
+    payment: { status: 'pending' }, print: {}, delivery: {}, prep: {}, log: [], checkoutSig: sig,
   };
   if (q.fulfilment === 'pickup') order.pickup = { branchId: q.branch.id, at: q.pickupAt };
   else order.deliveryOption = q.deliveryOption;
@@ -98,6 +120,12 @@ module.exports = handler(async (req, res) => {
   await store.saveOrder(order);
   await db.zadd('orders', order.createdAt, order.id);
   await db.set(`orderno:${order.no}`, order.id);
+  for (const o of earlier) {
+    if (o.id === order.id || o.payment.status !== 'pending') continue;
+    o.payment.status = 'replaced'; o.replacedBy = { no: order.no, id: order.id };
+    store.addLog(o, `Not paid: the customer checked out again as ${order.no}`);
+    await store.saveOrder(o);
+  }
   if (member) await db.zadd(`memberorders:${member.id}`, order.createdAt, order.id);
   send(res, 200, { paymentUrl: order.payment.billUrl, orderId: order.id, token: order.token });
 });

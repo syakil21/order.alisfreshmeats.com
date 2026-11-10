@@ -189,7 +189,7 @@
     return '<span class="tag t-pay">🛵 Delivery</span>';
   }
   function statusLine(o) {
-    if (!o.paid) return o.paymentStatus === 'failed' ? 'Payment failed' : `Checking out (${ago(o.createdAt)})`;
+    if (!o.paid) return o.paymentStatus === 'failed' ? 'Payment failed' : o.paymentStatus === 'replaced' ? esc(o.stageText) : `Checking out (${ago(o.createdAt)})`;
     if (o.cancelledAt) return 'Cancelled';
     if (o.fulfilment === 'pickup') return o.stage === 'collected' ? 'Collected' : o.readyAt ? `Ready since ${fmtTime(o.readyAt)}` : `Prepare for ${o.pickupAt ? whenText(Date.parse(o.pickupAt)) : 'pickup'}`;
     const ds = o.deliveryStatus;
@@ -203,7 +203,7 @@
   function cardActions(o) {
     const a = [];
     const b = (act, label, cls = '') => `<button type="button" class="btn sm ${cls}" data-cact="${act}" data-id="${esc(o.id)}">${label}</button>`;
-    if (!o.paid) { if (o.paymentStatus !== 'failed') a.push(b('order.checkPayment', 'Check payment')); return a.join(''); }
+    if (!o.paid) { if (o.paymentStatus === 'pending') a.push(b('order.checkPayment', 'Check payment')); return a.join(''); }
     if (o.cancelledAt) return '';
     if (o.problem === 'Label not printed') a.push(b('order.reprint', '🖨 Reprint', 'pri'));
     if (o.fulfilment === 'pickup') {

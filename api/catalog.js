@@ -6,7 +6,8 @@ const { send, handler } = require('../lib/http');
 const { shopOpen, usableBranches } = require('../lib/util');
 
 module.exports = handler(async (req, res) => {
-  const [settings, products] = await Promise.all([store.getSettings(), store.getProducts().then(store.withStock)]);
+  const settings = await store.getSettings();
+  const products = await store.withStock(await store.getProducts(), settings.branches);
   const status = shopOpen(settings);
   const welcome = await members.welcomeStatus(settings, null);
   let vapidKey = '';

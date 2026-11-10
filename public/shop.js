@@ -522,7 +522,7 @@
   function renderSummary() {
     const cm = $('#couponMsg');
     cm.className = 'msg'; cm.textContent = '';
-    $('#welcomeMsg').textContent = quote?.welcomeMessage || '';
+    $('#welcomeMsg').textContent = [quote?.welcomeMessage, quote?.fulfilment === 'delivery' ? quote?.branchNote : ''].filter(Boolean).join(' ');
     if (!quote) { $('#sum').innerHTML = ''; return updatePay(); }
     if (couponCode) {
       if (quote.couponError) { cm.className = 'msg err'; cm.textContent = quote.couponError; }

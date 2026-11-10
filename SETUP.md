@@ -179,7 +179,12 @@ After entering your real shop coordinates, check the radius values and adjust if
 - Lamb chop shoulder slices offer number of pieces or slice thickness (0.5, 1, 1.5 inch, or their own).
 - Edit the lists under **Settings → Cutting choices**.
 
-**Stock (inventory):** head, feet, brain, spleen, liver, tripe and lamb shank show a **+ Stock** tag in Menu. Enter how many you have; customers can't order more than that, the shop shows "Only 3 left" and then "Sold out". Stock goes down when an order is paid and back up if it's cancelled, deleted or edited down. Leave it empty to stop counting. Any other item can be counted from its edit page.
+**Stock (inventory), separate for each shop:** head, feet, brain, spleen, liver, tripe and lamb shank show **+ Selayang** and **+ Brickfields** tags in Menu. Tap a tag and enter how many that shop has.
+- Stock goes down when that shop's order is paid, and back up if the order is cancelled, deleted or edited down. Leave it empty to stop counting at that shop (no limit).
+- Self pickup: the customer can only order what the chosen shop has ("Head is sold out at our Selayang shop", so they can pick the other shop).
+- Delivery: if both shops reach the address and the nearer one has run out, the order goes to the other shop automatically.
+- The shop menu shows "Only 3 left" / "Sold out" based on the shop with the most.
+- Branch staff only see and change their own shop's stock. Any other item can be counted from its edit page.
 
 **Editing at checkout:** each cart line has **Edit cut** and **Remove**, plus +/−.
 

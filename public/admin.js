@@ -430,7 +430,21 @@
   // ---------- menu ----------
   const MODES = [['size', 'Piece size'], ['weight', 'Piece weight'], ['split', 'Cut each into (2/3 pcs)'], ['count', 'Number of pieces'], ['thickness', 'Slice thickness']];
   let products = []; let dirty = false;
-  async function loadProducts() { products = (await api('products.get')).products; dirty = false; renderProducts(); }
+  let stockBranches = [];
+  async function loadProducts() { const d = await api('products.get'); products = d.products; stockBranches = d.branches || []; dirty = false; renderProducts(); }
+  // one stock tag per branch this person handles: "Selayang 3 left", "Brickfields sold out", "+ Brickfields stock"
+  function stockTags(p, i) {
+    if (!p.id) return '';
+    const counted = stockBranches.some((b) => p.stockBy?.[b.id] != null);
+    if (!counted && !p.stockHint) return '';
+    const short = stockBranches.length > 1;
+    return `<span class="stk">${stockBranches.map((b) => {
+      const v = p.stockBy?.[b.id]; const min = Number(p.min) || 0.5;
+      const cls = v == null ? 't-pay' : v < min ? 't-bad' : v <= 5 ? 't-prep' : 't-done';
+      const txt = v == null ? `+ ${short ? b.name : 'Stock'}` : `${short ? `${b.name} ` : ''}${v < min ? 'sold out' : `${qtyText(v, p.unit)}`}`;
+      return `<button type="button" class="tag ${cls}" data-stock="${i}" data-br="${esc(b.id)}" title="Update ${esc(b.name)} stock" style="border:0;cursor:pointer">${esc(txt)}</button>`;
+    }).join('')}</span>`;
+  }
   const markDirty = () => { dirty = true; $('#saveProducts').textContent = 'Save changes •'; };
   function renderProducts() {
     $('#saveProducts').textContent = dirty ? 'Save changes •' : 'Save changes';
@@ -439,7 +453,7 @@
       <div class="mi ${p.available ? '' : 'off'}" data-i="${i}">
         <div class="ph2">${p.image ? `<img src="/api/image?id=${esc(p.image)}" alt="">` : 'No photo'}</div>
         <div class="nm" data-editp="${i}"><b>${esc(p.name || '(new item)')}</b><span>${[p.note, (p.cutModes || []).length ? '✂ ' + p.cutModes.map((m) => MODES.find((x) => x[0] === m)?.[1].split(' (')[0].toLowerCase()).join(', ') : ''].filter(Boolean).map(esc).join(' · ')}</span></div>
-        ${p.id && (p.stock != null || p.stockHint) ? `<button type="button" class="tag ${p.stock == null ? 't-pay' : p.stock < (Number(p.min) || 0.5) ? 't-bad' : p.stock <= 5 ? 't-prep' : 't-done'}" data-stock="${i}" title="Update stock" style="border:0;cursor:pointer">${p.stock == null ? '+ Stock' : p.stock < (Number(p.min) || 0.5) ? 'Sold out · 0' : `${qtyText(p.stock, p.unit)} left`}</button>` : ''}
+        ${stockTags(p, i)}
         <div class="pr">RM ${Number(p.price).toFixed(2)}<span class="muted">/${esc(p.unit)}</span></div>
         <label class="sw-sm" title="${p.available ? 'On sale' : 'Sold out'}"><input type="checkbox" data-avail="${i}" ${p.available ? 'checked' : ''} aria-label="${esc(p.name)} on sale"><i></i></label>
       </div>`).join('')).join('') || '<p class="muted">No items.</p>';
@@ -452,17 +466,20 @@
     catch (err) { toast(err.message); e.target.checked = !e.target.checked; }
   });
   $('#menuList').addEventListener('click', (e) => {
-    const st = e.target.closest('[data-stock]'); if (st) return askStock(products[Number(st.dataset.stock)]);
+    const st = e.target.closest('[data-stock]'); if (st) return askStock(products[Number(st.dataset.stock)], st.dataset.br);
     const n = e.target.closest('[data-editp]'); if (n && isSuper()) editProduct(Number(n.dataset.editp));
   });
   // Stock: goes down when an order is paid, back up when an order is cancelled or deleted
-  async function askStock(p, value) {
-    const v = value !== undefined ? value : prompt(`How many ${p.unit === 'kg' ? 'kg' : p.unit === 'set' ? 'sets' : 'pieces'} of ${p.name} do you have now?\n\nIt goes down by itself when orders are paid. Leave empty to stop counting (no limit).`, p.stock ?? '');
+  async function askStock(p, branchId, value) {
+    const br = stockBranches.find((b) => b.id === branchId); if (!br) return;
+    const cur = p.stockBy?.[branchId];
+    const v = value !== undefined ? value : prompt(`${br.name}: how many ${p.unit === 'kg' ? 'kg' : p.unit === 'set' ? 'sets' : 'pieces'} of ${p.name} do you have now?\n\nIt goes down by itself when ${br.name} orders are paid. Leave empty to stop counting (no limit).`, cur ?? '');
     if (v == null) return;
     try {
-      const fresh = (await api('stock.set', { id: p.id, qty: String(v).trim() })).products;
-      const f = fresh.find((x) => x.id === p.id); p.stock = f.stock; renderProducts();
-      toast(p.stock == null ? `${p.name}: not counting stock` : `${p.name}: ${qtyText(p.stock, p.unit)} in stock`);
+      const fresh = (await api('stock.set', { id: p.id, branchId, qty: String(v).trim() })).products;
+      const f = fresh.find((x) => x.id === p.id); p.stockBy = f.stockBy; p.stock = f.stock; renderProducts();
+      const n = p.stockBy[branchId];
+      toast(n == null ? `${br.name}: not counting ${p.name}` : `${br.name}: ${qtyText(n, p.unit)} ${p.name} in stock`);
     } catch (err) { toast(err.message); }
   }
   function editProduct(i) {
@@ -480,7 +497,7 @@
           <label class="f">Note <small style="display:inline">(e.g. “1 set”)</small><input class="inp" data-k="note" value="${esc(p.note)}"></label>
           <label class="f">Price (RM)<input class="inp" data-k="price" type="number" step="0.01" min="0" value="${esc(p.price)}"></label>
           <label class="f">Sold per<select class="inp" data-k="unit">${['kg', 'set', 'pc'].map((u) => `<option ${p.unit === u ? 'selected' : ''}>${u}</option>`).join('')}</select></label>
-          <label class="f">Stock now${p.id ? '' : ' <small style="display:inline">(save the item first)</small>'}<span class="row" style="gap:6px;flex-wrap:nowrap;margin-top:4px"><input class="inp" id="pStock" type="number" min="0" step="${p.unit === 'kg' ? 0.5 : 1}" value="${p.stock ?? ''}" placeholder="not counted" style="margin:0" ${p.id ? '' : 'disabled'}><button type="button" class="btn sm" id="pStockSave" ${p.id ? '' : 'disabled'}>Update</button></span><small>Empty = no limit. Goes down when orders are paid.</small></label>
+          ${stockBranches.map((b) => `<label class="f">${esc(b.name)} stock${p.id ? '' : ' <small style="display:inline">(save the item first)</small>'}<span class="row" style="gap:6px;flex-wrap:nowrap;margin-top:4px"><input class="inp" data-pstock="${esc(b.id)}" type="number" min="0" step="${p.unit === 'kg' ? 0.5 : 1}" value="${p.stockBy?.[b.id] ?? ''}" placeholder="not counted" style="margin:0" ${p.id ? '' : 'disabled'}><button type="button" class="btn sm" data-pstocksave="${esc(b.id)}" ${p.id ? '' : 'disabled'}>Update</button></span><small>Empty = no limit. Goes down when ${esc(b.name)} orders are paid.</small></label>`).join('')}
         </div>
         <h2 style="margin-top:16px">Cutting choices for customers</h2>
         <div class="modes">${MODES.map(([k, l]) => `<label class="ck"><input type="checkbox" data-mode="${k}" ${(p.cutModes || []).includes(k) ? 'checked' : ''}> ${l}</label>`).join('')}
@@ -504,7 +521,7 @@
     body.addEventListener('change', (e) => { if (e.target.type === 'checkbox' || e.target.tagName === 'SELECT') e.target.dispatchEvent(new Event('input', { bubbles: true })); });
     $('#pPhoto').onclick = () => { if (!p.id) return toast('Save the new item first, then add its photo.'); photoFor = p.id; $('#photoFile').value = ''; $('#photoFile').click(); };
     if ($('#pNoPhoto')) $('#pNoPhoto').onclick = (e) => confirm(`Remove the photo of ${p.name}?`) && busy(e.target, async () => { mergeImages((await api('products.imageRemove', { id: p.id })).products); editProduct(i); });
-    $('#pStockSave').onclick = () => askStock(p, $('#pStock').value);
+    body.querySelectorAll('[data-pstocksave]').forEach((btn) => (btn.onclick = () => askStock(p, btn.dataset.pstocksave, body.querySelector(`[data-pstock="${btn.dataset.pstocksave}"]`).value)));
     $('#pDel').onclick = () => { if (confirm(`Delete ${p.name}? Click Save changes afterwards.`)) { products.splice(i, 1); markDirty(); renderProducts(); closeDrawer(); } };
     body.querySelectorAll('[data-mv]').forEach((b) => (b.onclick = () => { const j = i + Number(b.dataset.mv); if (j < 0 || j >= products.length) return; [products[i], products[j]] = [products[j], products[i]]; markDirty(); renderProducts(); editProduct(j); }));
     $('#pSave').onclick = (e) => saveProducts(e.target).then(() => closeDrawer());

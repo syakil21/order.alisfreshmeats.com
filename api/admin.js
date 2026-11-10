@@ -84,6 +84,12 @@ async function stopLalamove(o, me, why, force) {
   }
 }
 const staffLog = (me, msg, extra = {}) => activity.log('staff', `${msg} · ${me?.name || 'staff'}`, { by: me?.name || '', ...extra });
+// Menu for the dashboard: products with stock per branch, and the branches this person handles
+async function productsView(me) {
+  const settings = await store.getSettings();
+  const branches = settings.branches.filter((b) => b.active !== false && staff.sees(me, { branchId: b.id })).map((b) => ({ id: b.id, name: b.name }));
+  return { products: await store.withStock(await store.getProducts(), settings.branches), branches };
+}
 async function getOrderOr404(id) { const o = await store.getOrder(id); if (!o) throw httpError(404, 'Order not found'); return o; }
 const MAX_IMAGE_BYTES = 700 * 1024;
 const list = (v, n = 12) => String(Array.isArray(v) ? v.join(',') : v || '').split(',').map((x) => x.trim()).filter(Boolean).slice(0, n);
@@ -348,7 +354,7 @@ const actions = {
     o.totalSen = o.subtotalSen - o.discountSen - (o.pointsSen || 0) + (o.deliverySen || 0);
     if (o.totalSen !== before) ch.push(`total RM${rm(before)} → RM${rm(o.totalSen)}`);
     // counted stock follows the new amounts on paid orders
-    if (o.stockApplied && !o.reversedAt) for (const [pid, d] of Object.entries(stockDelta)) if (d) await store.changeStock(pid, -d);
+    if (o.stockApplied && !o.reversedAt) for (const [pid, d] of Object.entries(stockDelta)) if (d) await store.changeStock(o.branchId, pid, -d);
     const reason = str(b.reason, 200);
     (o.edits ||= []).push({ at: Date.now(), by: me.name, changes: ch, reason });
     store.addLog(o, `Edited: ${ch.join('; ')}${reason ? ` (${reason})` : ''}`, 'staff', me.name);
@@ -398,23 +404,25 @@ const actions = {
 
   // ---- stock (staff can update) ----
   async 'stock.set'(b, req, me) {
-    const products = await store.getProducts();
-    const p = products.find((x) => x.id === b.id); if (!p) throw httpError(404, 'Product not found');
+    const settings = await store.getSettings();
+    const br = settings.branches.find((x) => x.id === b.branchId); if (!br) throw httpError(400, 'Choose the branch.');
+    if (!staff.sees(me, { branchId: br.id })) throw httpError(403, `You can only change ${me.branches.map((id) => settings.branches.find((x) => x.id === id)?.name).join(', ')} stock.`);
+    const p = (await store.getProducts()).find((x) => x.id === b.id); if (!p) throw httpError(404, 'Product not found');
     const raw = b.qty;
     if (raw === null || raw === undefined || String(raw).trim() === '') {
-      await store.setStock(p.id, null);
-      activity.log('stock', `${p.name}: stopped counting stock · ${me.name}`, { by: me.name });
+      await store.setStock(br.id, p.id, null);
+      activity.log('stock', `${p.name} at ${br.name}: stopped counting stock · ${me.name}`, { by: me.name });
     } else {
       const q = Math.round(num(raw, -1) * 100) / 100;
       if (!(q >= 0 && q <= 100000)) throw httpError(400, 'Enter how many you have (0 or more).');
-      await store.setStock(p.id, q);
-      activity.log('stock', `${p.name}: stock set to ${fmtQty(q, p.unit)} · ${me.name}`, { by: me.name });
+      await store.setStock(br.id, p.id, q);
+      activity.log('stock', `${p.name} at ${br.name}: stock set to ${fmtQty(q, p.unit)} · ${me.name}`, { by: me.name });
     }
-    return { products: await store.withStock(await store.getProducts()) };
+    return productsView(me);
   },
 
   // ---- catalogue ----
-  async 'products.get'(b, req, me) { return { products: await store.withStock(await store.getProducts()) }; },
+  async 'products.get'(b, req, me) { return productsView(me); },
   async 'products.save'(b, req, me) {
     if (!Array.isArray(b.products)) throw httpError(400, 'products must be a list');
     const current = Object.fromEntries((await store.getProducts()).map((p) => [p.id, p]));
@@ -435,14 +443,16 @@ const actions = {
     staffLog(me, `Menu saved (${list.length} products)`);
     // delete photos of removed products
     for (const old of Object.values(current)) if (old.image && !list.some((p) => p.image === old.image)) await db.del(`img:${old.image}`);
-    return { products: await store.withStock(await store.saveProducts(list)) };
+    await store.saveProducts(list);
+    return productsView(me);
   },
   async 'products.toggle'(b, req, me) {
     const products = await store.getProducts();
     const p = products.find((x) => x.id === b.id); if (!p) throw httpError(404, 'Product not found');
     p.available = !!b.available;
     staffLog(me, `${p.name} ${p.available ? 'back on sale' : 'marked sold out'}`);
-    return { products: await store.withStock(await store.saveProducts(products)) };
+    await store.saveProducts(products);
+    return productsView(me);
   },
   async 'products.image'(b, req, me) {
     const m = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/.exec(String(b.dataUrl || ''));
@@ -455,14 +465,16 @@ const actions = {
     if (p.image) await db.del(`img:${p.image}`);
     p.image = imgId;
     staffLog(me, `Photo changed: ${p.name}`);
-    return { products: await store.withStock(await store.saveProducts(products)) };
+    await store.saveProducts(products);
+    return productsView(me);
   },
   async 'products.imageRemove'(b, req, me) {
     const products = await store.getProducts();
     const p = products.find((x) => x.id === b.id); if (!p) throw httpError(404, 'Product not found');
     if (p.image) await db.del(`img:${p.image}`);
     p.image = '';
-    return { products: await store.withStock(await store.saveProducts(products)) };
+    await store.saveProducts(products);
+    return productsView(me);
   },
 
   // ---- registered members ----

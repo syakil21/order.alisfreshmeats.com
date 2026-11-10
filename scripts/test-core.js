@@ -117,6 +117,20 @@ assert.ok(at(3.6850, 101.5180).outside, 'Tanjung Malim outside');
 assert.ok(at(3.6800, 100.9870).outside, 'Sabak Bernam outside');
 assert.strictEqual(branchRadiusKm({ id: 'selayang' }), 48); assert.strictEqual(branchRadiusKm({ id: 'brickfields' }), 55);
 console.log('✓ Delivery radius (KKB, Kuala Selangor, Seremban in; Port Dickson, Tanjung Malim out)');
+// ---- stock per branch ----
+const { stockErrors, canServe } = require('../lib/pricing');
+const stk = SEED_PRODUCTS.map((p) => (p.id === 'head' ? { ...p, stockBy: { selayang: 0, brickfields: 2 } } : { ...p, stockBy: { selayang: null, brickfields: null } }));
+const SEL = { id: 'selayang', name: 'Selayang' }; const BRK = { id: 'brickfields', name: 'Brickfields' };
+const headLine = [{ productId: 'head', qty: 2 }, { productId: 'boneless-meat', qty: 5 }];
+assert.deepStrictEqual(stockErrors(headLine, stk, SEL), ['Head is sold out at our Selayang shop.']);
+assert.deepStrictEqual(stockErrors(headLine, stk, BRK), []);
+assert.deepStrictEqual(stockErrors([{ productId: 'head', qty: 3 }], stk, BRK), ['Head: only 2 sets left at our Brickfields shop.']);
+const both = { lat: 3.208, lng: 101.637 }; // Kepong: both shops deliver here, Selayang is nearer
+assert.strictEqual(pickBranch(RS, both).branch.id, 'selayang');
+const pb = pickBranch(RS, both, (br) => canServe(headLine, stk, br));
+assert.strictEqual(pb.branch.id, 'brickfields'); assert.strictEqual(pb.skipped.id, 'selayang');
+assert.strictEqual(pickBranch(RS, both, () => false).branch.id, 'selayang', 'nobody has it: nearest shop, error shown');
+console.log('✓ Stock per branch (sold out at one shop → the other in-range shop delivers)');
 
 // ---- cut modes per product + max per order ----
 r = priceCart({ items: [{ productId: 'mutton-leg-bones-marrow', qty: 1, cut: { by: 'split', split: '3 pcs' } }], products: SEED_PRODUCTS, coupons: {}, customers: {}, settings: S });

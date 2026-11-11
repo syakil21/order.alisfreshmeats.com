@@ -13,8 +13,9 @@ const { stage } = require('../lib/stage');
 const members = require('../lib/members');
 const push = require('../lib/push');
 const activity = require('../lib/activity');
-const { insights, summarize } = require('../lib/insights');
-const { normalizePhone, shopOpen, mytParts, fmtTime, rm, fmtQty } = require('../lib/util');
+const { insights, summarize, rangeOf, lalamoveCostSen } = require('../lib/insights');
+const daily = require('../lib/daily');
+const { normalizePhone, prettyPhone, shopOpen, mytParts, fmtTime, rm, fmtQty } = require('../lib/util');
 
 const num = (v, d = 0) => (isFinite(parseFloat(v)) ? parseFloat(v) : d);
 const str = (v, n = 200) => String(v ?? '').trim().slice(0, n);
@@ -47,7 +48,7 @@ function summary(o) {
     printStatus: o.print?.status || '', deliveryStatus: d.status || '',
     pickupAt: o.fulfilment === 'pickup' ? o.pickup?.at || null : d.scheduleAt || null,
     driver: d.driver?.name || '', driverPlate: d.driver?.plate || '', driverPhone: d.driver?.phone || '', priorityFeeRM: d.priorityFeeRM || 0, bookedAt: d.bookedAt || 0, matchedAt: d.driver?.matchedAt || 0,
-    readyAt: o.prep?.readyAt || 0, cancelledAt: o.cancelledAt || 0, attempts: d.attempts || 0,
+    readyAt: o.prep?.readyAt || 0, cancelledAt: o.cancelledAt || 0, attempts: d.attempts || 0, preorder: !!o.preorder,
   };
 }
 const detail = (o) => { const { token, ...rest } = o; return { ...rest, ...{ summary: summary(o) } }; };
@@ -185,6 +186,8 @@ const actions = {
 
   // ---- home: store switch, today's numbers and the order board ----
   async home(b, req, me) {
+    const ver = Number(await db.get(store.VER)) || Number(await db.incr(store.VER)); // read first: anything saved after this makes the next quick check reload
+    daily.tick().catch(() => {});
     const [settings, orders, today] = await Promise.all([store.getSettings(), store.listOrders(300), insights({ range: 'today' })]);
     const stale = orders.filter((o) => ['ASSIGNING_DRIVER', 'ON_GOING', 'PICKED_UP'].includes(o.delivery?.status) && Date.now() - (o.delivery.checkedAt || o.delivery.bookedAt || 0) > 5 * 60000).slice(0, 3);
     for (const o of stale) { try { orders[orders.indexOf(o)] = await refreshDelivery(o); } catch (e) { console.warn('board refresh failed', o.no, e.message); } }
@@ -202,7 +205,8 @@ const actions = {
       return now - o.createdAt < 4 * 86400000;
     }).map(summary);
     return {
-      store: { open: st.open, message: st.message, acceptingOrders: settings.acceptingOrders, pausedUntil: settings.pausedUntil > now ? settings.pausedUntil : 0, hours: settings.hours },
+      ver,
+      store: { open: st.open, preorder: !!st.preorder, message: st.message, acceptingOrders: settings.acceptingOrders, pausedUntil: settings.pausedUntil > now ? settings.pausedUntil : 0, hours: settings.hours },
       today: me?.role === 'super'
         ? { salesSen: today.salesSen, orders: today.orders, aovSen: today.aovSen, delivery: today.delivery, pickup: today.pickup, prev: today.prev, unpaid: today.unpaid }
         : { orders: paidToday.length, delivery: paidToday.filter((o) => o.fulfilment !== 'pickup').length, pickup: paidToday.filter((o) => o.fulfilment === 'pickup').length, unpaid: todays.filter((o) => o.payment.status !== 'paid').length },
@@ -360,7 +364,7 @@ const actions = {
     o.originalTotalSen ??= o.totalSen;
     o.subtotalSen = o.items.reduce((sum, it) => sum + it.lineSen, 0);
     o.discountSen = Math.min(o.discountSen || 0, o.subtotalSen);
-    o.totalSen = o.subtotalSen - o.discountSen - (o.pointsSen || 0) + (o.deliverySen || 0);
+    o.totalSen = o.subtotalSen - o.discountSen - (o.pointsSen || 0) + (o.smallOrderSen || 0) + (o.deliverySen || 0);
     if (o.totalSen !== before) ch.push(`total RM${rm(before)} → RM${rm(o.totalSen)}`);
     // counted stock follows the new amounts on paid orders
     if (o.stockApplied && !o.reversedAt) for (const [pid, d] of Object.entries(stockDelta)) if (d) await store.changeStock(o.branchId, pid, -d);
@@ -575,6 +579,9 @@ const actions = {
       specialRequests: str(s.specialRequests, 200).toUpperCase().replace(/\s+/g, ''),
       deliveryMarkup: Math.max(0, num(s.deliveryMarkup)),
       minOrder: Math.max(0, num(s.minOrder)),
+      smallOrder: { enabled: !!(s.smallOrder?.enabled ?? cur.smallOrder.enabled), belowRM: Math.max(0, Math.round(num(s.smallOrder?.belowRM, cur.smallOrder.belowRM) * 100) / 100), feeRM: Math.max(0, Math.min(50, Math.round(num(s.smallOrder?.feeRM, cur.smallOrder.feeRM) * 100) / 100)) },
+      preorder: { enabled: !!(s.preorder?.enabled ?? cur.preorder.enabled) },
+      dailySummary: { enabled: !!(s.dailySummary?.enabled ?? cur.dailySummary.enabled) },
       stackDiscounts: !!s.stackDiscounts,
       checkoutNote: str(s.checkoutNote, 300),
       deliveryAreaNote: str(s.deliveryAreaNote, 200),
@@ -612,6 +619,25 @@ const actions = {
 
   // ---- insights, activity log, promotions ----
   async insights(b, req, me) { return insights({ range: b.range, from: b.from, to: b.to }); },
+  // Paid orders in a date range as a spreadsheet (CSV) for the accounts
+  async 'orders.export'(b, req, me) {
+    const r = rangeOf(b.range, b.from, b.to);
+    const orders = (await store.ordersBetween(r.from, r.to)).filter((o) => o.payment?.status === 'paid' && !o.deletedAt && (!b.branchId || o.branchId === b.branchId));
+    const m = (sen) => (Number(sen || 0) / 100).toFixed(2);
+    const cell = (v) => { const s = String(v ?? ''); return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+    const head = ['Order no', 'Date', 'Time', 'Branch', 'Customer', 'Phone', 'Email', 'Type', 'Items', 'Items total (RM)', 'Discounts (RM)', 'Points used (RM)', 'Small order fee (RM)', 'Delivery charged (RM)', 'Total (RM)', 'Paid (RM)', 'Lalamove cost (RM)', 'Coupon', 'Paid on', 'Billplz bill', 'Status'];
+    const rows = orders.map((o) => [
+      o.no, mytParts(o.createdAt).date, fmtTime(o.createdAt), o.branchName, o.customer.name, prettyPhone(o.customer.phone), o.customer.email || '',
+      o.fulfilment === 'pickup' ? 'Self pickup' : `Delivery (${({ priority: 'Priority', saver: 'Pooling' })[o.deliveryOption] || 'Regular'})`,
+      o.items.map((i) => `${fmtQty(i.qty, i.unit)} ${i.name}`).join('; '),
+      m(o.subtotalSen), m(o.discountSen), m(o.pointsSen), m(o.smallOrderSen), m(o.deliverySen), m(o.totalSen), m(o.payment.paidSen ?? o.originalTotalSen ?? o.totalSen),
+      o.fulfilment === 'pickup' ? '' : m(lalamoveCostSen(o)), o.couponCode || '',
+      o.payment.paidAt ? `${mytParts(o.payment.paidAt).date} ${fmtTime(o.payment.paidAt)}` : '', o.payment.billId || '', o.cancelledAt ? 'Cancelled' : 'Paid',
+    ]);
+    const days = `${mytParts(r.from).date}_to_${mytParts(r.to).date}`;
+    staffLog(me, `Orders exported to a spreadsheet (${r.label}, ${rows.length} orders)`);
+    return { csv: [head, ...rows].map((x) => x.map(cell).join(',')).join('\r\n'), filename: `alis-orders_${days}${b.branchId ? `_${slug(b.branchId)}` : ''}.csv`, count: rows.length };
+  },
   async 'activity.list'(b, req, me) {
     const start = Math.max(0, Math.round(num(b.start))); const count = Math.min(300, Math.max(10, Math.round(num(b.count, 100))));
     const type = activity.TYPES.includes(b.type) ? b.type : ''; const q = str(b.q, 60).toLowerCase();
@@ -635,7 +661,8 @@ const actions = {
   },
   async 'staffPush.save'(b, req, me) {
     if (b.on === false) { if (b.subscription?.endpoint) await push.save(b.subscription, { staff: false }); return { on: false }; }
-    await push.save(b.subscription, { staff: true, branches: me.branches || [] });
+    await push.save(b.subscription, { staff: true, branches: me.branches || [], isSuper: me.role === 'super' });
+    if (b.quiet) return { on: true }; // the dashboard refreshing who this phone belongs to
     staffLog(me, 'New-order alerts turned on for a staff device');
     await push.notifyStaff({ title: 'New-order alerts are on ✅', body: "This device will be notified when a paid order comes in.", url: '/admin.html', tag: 'staff-test' });
     return { on: true };
@@ -688,6 +715,16 @@ module.exports = handler(async (req, res) => {
   const b = await body(req);
   const fn = actions[b.action];
   if (!fn) return send(res, 400, { error: 'Unknown action' });
+  // The dashboard's quick check, every few seconds: one database round trip (session + staff list + change counter).
+  // Nothing changed since the board was last loaded → answer straight away without loading anything.
+  if (b.action === 'home' && b.since) {
+    const t = String(req.headers.authorization || '').replace(/^Bearer /, '');
+    const [sess, users, ver] = t ? await db.mget([`sess:${t}`, staff.KEY, store.VER]) : [];
+    const who = staff.currentFrom(sess, users);
+    if (!who) throw httpError(401, 'Please log in again.');
+    if (String(Number(ver) || 0) === String(b.since)) return send(res, 200, { unchanged: true, now: Date.now() });
+    return send(res, 200, await actions.home(b, req, who));
+  }
   const me = b.action === 'login' ? null : await requireSession(req);
   if (me && me.role !== 'super' && !STAFF_OK.has(b.action)) throw httpError(403, 'Only a super admin can do this.');
   if (me && b.id && /^order\./.test(b.action) && b.action !== 'order.byNo') {

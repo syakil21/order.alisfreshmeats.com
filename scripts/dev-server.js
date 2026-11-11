@@ -17,6 +17,11 @@ Object.assign(process.env, {
 });
 const billplz = require('../lib/billplz');
 const store = require('../lib/store');
+// keep a copy of every staff phone alert so tests can check who would be told what
+const pushLib = require('../lib/push');
+const staffAlerts = [];
+const realNotifyStaff = pushLib.notifyStaff;
+pushLib.notifyStaff = (p, branchId, o) => { staffAlerts.push({ title: p.title, body: p.body, tag: p.tag, branchId: branchId || '', superOnly: !!o?.superOnly }); return realNotifyStaff(p, branchId, o); };
 const { distanceKm } = require('../lib/util');
 
 // demo branch locations (made up for local testing only)
@@ -30,7 +35,7 @@ store.saveSettings({
 });
 
 // ---------------- fake external services ----------------
-const mock = { bills: new Map(), llm: new Map(), quotes: new Map(), jobs: 0, calls: [] };
+const mock = { bills: new Map(), llm: new Map(), quotes: new Map(), jobs: 0, calls: [], down: {} }; // down.lalamove / down.print: pretend that service is failing
 const realFetch = global.fetch;
 const J = (status, data) => new Response(data == null ? null : JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
 
@@ -44,6 +49,7 @@ global.fetch = async (url, opts = {}) => {
     const expect = crypto.createHmac('sha256', process.env.LALAMOVE_API_SECRET).update(raw).digest('hex');
     if (key !== process.env.LALAMOVE_API_KEY || sig !== expect || opts.headers.Market !== 'MY') return J(401, { errors: [{ id: 'ERR_UNAUTHORIZED', message: 'bad signature' }] });
     const body = opts.body ? JSON.parse(opts.body).data : null;
+    if (mock.down.lalamove && method === 'POST') return J(503, { errors: [{ id: 'ERR_SERVICE_UNAVAILABLE', message: 'Lalamove is not available (mock)' }] });
     if (method === 'POST' && u.pathname === '/v3/quotations') {
       const [a, b] = body.stops.map((s) => ({ lat: +s.coordinates.lat, lng: +s.coordinates.lng }));
       const km = distanceKm(a, b) * 1.3;
@@ -106,6 +112,7 @@ global.fetch = async (url, opts = {}) => {
   }
   if (u.host === 'api.printnode.com') {
     if (u.pathname === '/printers') return J(200, [{ id: 7350001, name: 'Clabel CT221B', computer: { name: 'SELAYANG-PC' }, state: 'online' }, { id: 7350002, name: 'Clabel CT221B', computer: { name: 'BRICKFIELDS-PC' }, state: 'online' }]);
+    if (u.pathname === '/printjobs' && mock.down.print) return J(500, { message: 'Printer offline (mock)' });
     if (u.pathname === '/printjobs') {
       const b = JSON.parse(opts.body); const n = ++mock.jobs;
       fs.mkdirSync(PRINT_DIR, { recursive: true });
@@ -166,6 +173,9 @@ const server = http.createServer(async (req, res) => {
     if ((m = u.pathname.match(/^\/__mock\/lalamove\/advance\/(\d+)$/))) return await mockAdvance(req, res, m[1]);
     if (u.pathname === '/__mock/calls') { res.setHeader('Content-Type', 'application/json'); return res.end(JSON.stringify({ calls: mock.calls, llm: [...mock.llm.values()].map((o) => ({ orderId: o.orderId, status: o.status, remarks: o.remarks, metadata: o.metadata, tier: o.tier, priorityFee: o.priorityFee || '', changedDriver: o.changedDriver || '', driverId: o.driverId })) })); }
     // demo: a booking Lalamove doesn't know (like one made with sandbox keys before going live)
+    if (u.pathname === '/__mock/alerts') { res.setHeader('Content-Type', 'application/json'); return res.end(JSON.stringify(staffAlerts)); }
+    if (u.pathname === '/__mock/daily') { const d = require('../lib/daily'); d._reset(); res.setHeader('Content-Type', 'application/json'); return res.end(JSON.stringify(await d.tick())); }
+    if ((m = u.pathname.match(/^\/__mock\/down\/(lalamove|print)\/(on|off)$/))) { mock.down[m[1]] = m[2] === 'on'; res.setHeader('Content-Type', 'application/json'); return res.end(JSON.stringify(mock.down)); }
     if ((m = u.pathname.match(/^\/__mock\/lalamove\/forget\/(\d+)$/))) { mock.llm.delete(m[1]); res.setHeader('Content-Type', 'application/json'); return res.end('{"ok":true}'); }
     if ((m = u.pathname.match(/^\/__mock\/lalamove\/status\/(\d+)\/(\w+)$/))) { const o = mock.llm.get(m[1]); if (o) o.status = m[2]; res.setHeader('Content-Type', 'application/json'); return res.end(JSON.stringify({ status: o?.status })); }
     if ((m = u.pathname.match(/^\/__mock\/lalamove\/expire\/(\d+)$/))) { const o = mock.llm.get(m[1]); if (o) o.status = 'EXPIRED'; res.setHeader('Content-Type', 'application/json'); return res.end(JSON.stringify({ status: o?.status })); }

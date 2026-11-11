@@ -170,6 +170,7 @@
     .log li { margin:3px 0; }
     .cutline { font-size:12.5px; color:#8a5a2e; font-weight:600; }
     .note { padding:10px 12px; border-radius:10px; background:var(--warn-bg); color:#5e3a00; font-size:13.5px; }
+    .attn { display:block; width:100%; text-align:left; margin:0 0 12px; padding:11px 14px; border:1px solid #f2c2bc; border-radius:10px; background:var(--bad-bg); color:var(--bad); font:inherit; font-size:14px; cursor:pointer; }
     .note.info { background:var(--info-bg); color:#173c78; }
 
     /* menu */
@@ -258,6 +259,7 @@
           <div class="pause" id="pauseBtns"></div>
         </div>
         <div class="tiles" id="todayTiles"></div>
+        <button type="button" class="attn hidden" id="attnBar"></button>
         <div class="boardbar">
           <div class="scrollx" id="boardTabs"></div>
           <input class="inp" id="search" placeholder="Search order, name, phone" style="width:220px">
@@ -282,7 +284,8 @@
       <section class="page hidden" data-view="insights">
         <div class="ph"><h1>Insights</h1></div>
         <div class="row" style="margin-bottom:14px">
-          <div class="scrollx" id="rangeChips"></div>
+          <div class="scrollx grow" id="rangeChips"></div>
+          <button class="btn sm" id="exportBtn" type="button" title="Paid orders of this period as a spreadsheet file (Excel / Google Sheets)">⬇ Download spreadsheet</button>
           <div class="row hidden" id="customRange"><input class="inp" type="date" id="rFrom"><span class="muted">to</span><input class="inp" type="date" id="rTo"><button class="btn sm pri" id="rGo" type="button">Show</button></div>
         </div>
         <div id="insights"><p class="muted">Loading…</p></div>
@@ -397,9 +400,14 @@
               <label class="f">Open from<input class="inp" type="time" name="hours.open"></label>
               <label class="f">Last order at<input class="inp" type="time" name="hours.close"></label>
               <label class="f">Minimum order (RM)<input class="inp" type="number" step="0.01" min="0" name="minOrder"></label>
+              <label class="f">Small order fee (RM)<input class="inp" type="number" step="0.05" min="0" max="50" name="smallOrder.feeRM"><small>Added to orders below the amount on the right. 0 = no fee.</small></label>
+              <label class="f">Charged when items are below (RM)<input class="inp" type="number" step="1" min="0" name="smallOrder.belowRM"><small>Counts the meat only, before discounts and delivery.</small></label>
               <label class="f">Prep time (minutes)<input class="inp" type="number" min="0" name="prepMinutes"><small>Lalamove driver is scheduled this long after payment. Also the earliest self-pickup time.</small></label>
             </div>
             <h2 style="margin-top:16px">Closed on</h2><div class="chips" id="closedDays"></div>
+            <label class="ck" style="margin-top:14px"><input type="checkbox" name="smallOrder.enabled"><span>Charge the small order fee</span></label>
+            <label class="ck" style="margin-top:10px"><input type="checkbox" name="preorder.enabled"><span>Take orders while closed<small>Customers can order and pay after hours. Delivery is booked for the next opening time (plus prep time); self pickup uses the next free time slots. Off: the shop page says closed and nobody can pay.</small></span></label>
+            <label class="ck" style="margin-top:10px"><input type="checkbox" name="dailySummary.enabled"><span>Send me the day's sales after closing<small>A phone alert about 20 minutes after the last order time, to super admins who turned on alerts on their phone.</small></span></label>
             <label class="f" style="margin-top:14px">Message on checkout<input class="inp" name="checkoutNote"></label>
           </div>
           <div class="card"><h2>Delivery options</h2>
@@ -476,6 +484,6 @@
     <div class="drawer" id="drawer"><div class="scrim" data-close></div><div class="panel" id="drawerBody"></div></div>
   </div>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script src="/admin.js?v=19"></script>
+  <script src="/admin.js?v=20"></script>
 </body>
 </html>

@@ -215,3 +215,43 @@ After entering your real shop coordinates, check the radius values and adjust if
 - The driver gives that number at the counter, and staff match it to the sticker.
 
 **How staff know which driver is for which order:** on the dashboard, once a driver accepts, the order card shows **🛵 driver name · plate number** with a **📞 Driver** button. The order page has the driver's phone and the Lalamove tracking link.
+
+## Small order fee, orders while closed, alerts, export, Bahasa Melayu
+
+**Small order fee.** Settings → Ordering hours. Orders whose meat comes to less than RM50 pay RM1.25 (both numbers
+can be changed; untick "Charge the small order fee" to stop). It counts the meat only, before discounts and
+delivery, and applies to delivery and self pickup. The checkout tells the customer how much more to add to
+remove the fee. It is listed on the order, in Insights ("Small order fees collected") and in the spreadsheet.
+
+**Orders while closed.** With "Take orders while closed" ticked, customers can order and pay after hours:
+
+- Delivery: Lalamove is booked straight away for the next opening time plus the prep time (closed at 6pm, open
+  9am, prep 30 min → the driver comes around 9:30am). Only Regular delivery is offered.
+- Self pickup: the customer picks one of the next free time slots.
+- The sticker is sent to the printer at payment; it prints when the shop computer is switched on.
+- Pausing orders or turning the store switch off still stops everything, including orders while closed.
+
+**Alerts when something fails.** If Lalamove could not be booked, or the sticker did not print, staff phones for
+that branch get their own alert, and Home shows a red bar ("2 orders need attention") until it is fixed.
+
+**Day's sales on your phone.** About 20 minutes after the last order time, super admins who turned on phone
+alerts get one message with the day's sales, orders and sales per branch. Open the dashboard once on that
+phone after this update so it knows the phone belongs to a super admin. Untick it in Settings to stop.
+
+**Spreadsheet for the accounts.** Insights → choose the period → "Download spreadsheet". One row per paid order
+(items, discounts, fees, delivery charged, Lalamove cost, Billplz bill number). Opens in Excel or Google Sheets.
+Super admins only.
+
+**Bahasa Melayu.** Customers switch with the BM / EN button at the top of the shop, order and account pages;
+phones set to Malay start in BM. The translations are in `public/i18n.js` (plain list, English on the left).
+Product names and section names you type in the Menu are shown as typed.
+
+**Database use.** The dashboard now asks the server "anything new?" every 15 seconds with a tiny request and
+only reloads the board when something changed (and every 5 minutes anyway). An open dashboard uses about 350
+database commands an hour instead of about 1,900, which keeps two shops inside Upstash's free 500,000 a month.
+If Upstash ever warns that you are near the limit, add a card there (pay as you go, about USD 0.20 per 100,000).
+
+**Link previews.** Sharing https://order.alisfreshmeats.com on WhatsApp or Facebook now shows the logo, a title
+and a short description (`public/icons/share.jpg`). WhatsApp keeps old previews for a while.
+
+**Tests.** `npm test` for the quick checks; `npm run test:e2e` for the browser tests (see `scripts/e2e/README.md`).

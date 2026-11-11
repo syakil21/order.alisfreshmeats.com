@@ -217,5 +217,50 @@ const { PDFDocument } = require('pdf-lib');
     assert.ok(pdf.length > 1000);
   }
   console.log('✓ Self-pickup and priority labels');
+  // ---- ordering ahead while closed ----
+  {
+    const { nextOpenAt, fmtWhen } = require('../lib/util');
+    const st = { ...DEFAULT_SETTINGS, hours: { open: '09:00', close: '18:00', closedDays: [0] }, preorder: { enabled: true } };
+    const fri8pm = Date.parse('2026-11-13T20:00:00+08:00'); const sat8pm = Date.parse('2026-11-14T20:00:00+08:00'); const sat8am = Date.parse('2026-11-14T08:00:00+08:00');
+    let o = shopOpen(st, fri8pm);
+    assert.strictEqual(o.open, false); assert.strictEqual(o.preorder, true);
+    assert.strictEqual(o.nextOpenAt, Date.parse('2026-11-14T09:00:00+08:00'));
+    assert.strictEqual(fmtWhen(o.nextOpenAt, fri8pm), 'Tomorrow 9:00am');
+    assert.strictEqual(nextOpenAt(st, sat8pm), Date.parse('2026-11-16T09:00:00+08:00'), 'Sunday is closed, so Monday');
+    assert.strictEqual(fmtWhen(nextOpenAt(st, sat8am), sat8am), 'Today 9:00am');
+    assert.strictEqual(shopOpen({ ...st, preorder: { enabled: false } }, fri8pm).preorder, undefined, 'switched off: just closed');
+    assert.strictEqual(shopOpen({ ...st, acceptingOrders: false }, fri8pm).preorder, undefined, 'ordering turned off: no pre-orders');
+    assert.strictEqual(shopOpen({ ...st, pausedUntil: fri8pm + 3600000 }, fri8pm).preorder, undefined, 'paused: no pre-orders');
+    assert.strictEqual(shopOpen(st, Date.parse('2026-11-13T10:00:00+08:00')).open, true);
+    console.log('✓ Ordering ahead while closed (next opening time)');
+  }
+
+  // ---- small order fee (uses the in-memory database) ----
+  {
+    process.env.ALLOW_MEMORY_DB = '1';
+    const store = require('../lib/store');
+    const { buildQuote } = require('../lib/quote');
+    const base = { ...DEFAULT_SETTINGS, hours: { open: '00:00', close: '23:59', closedDays: [] }, branches: [{ id: 'selayang', name: 'Selayang', address: 'x', lat: '3.25', lng: '101.65', phone: '+60162053786', active: true }] };
+    await store.saveSettings(base);
+    const quote = async (items) => (await buildQuote({ items, fulfilment: 'pickup', pickupBranchId: 'selayang' })).result;
+    let q = await quote([{ productId: 'feet', qty: 1 }]); // RM24
+    assert.strictEqual(q.smallOrderSen, 125); assert.strictEqual(q.smallOrderBelowSen, 5000);
+    assert.strictEqual(q.totalSen, 2400 + 125, 'fee is added to the total');
+    q = await quote([{ productId: 'feet', qty: 2 }]); // RM48
+    assert.strictEqual(q.smallOrderSen, 125);
+    q = await quote([{ productId: 'mutton-chops', qty: 1 }, { productId: 'brain', qty: 1 }]); // RM50 exactly
+    assert.strictEqual(q.subtotalSen, 5000); assert.strictEqual(q.smallOrderSen, 0, 'RM50 and above: no fee');
+    await store.saveSettings({ ...base, smallOrder: { enabled: false, belowRM: 50, feeRM: 1.25 } });
+    q = await quote([{ productId: 'feet', qty: 1 }]);
+    assert.strictEqual(q.smallOrderSen, 0); assert.strictEqual(q.totalSen, 2400);
+    console.log('✓ Small order fee (RM1.25 under RM50, off at RM50, can be switched off)');
+
+    // ---- end-of-day summary text ----
+    const { text } = require('../lib/daily');
+    const t = text({ orders: 3, delivery: 2, pickup: 1, salesSen: 45050, unpaid: 1, prev: { salesSen: 40000 }, branches: [{ name: 'Selayang', salesSen: 30050 }, { name: 'Brickfields', salesSen: 15000 }] }, "Today's");
+    assert.strictEqual(t.title, "Today's sales: RM450.50");
+    assert.strictEqual(t.body, '3 orders (2 delivery, 1 pickup) · Selayang RM300.50 · Brickfields RM150.00 · ▲ 13% vs the day before · 1 checkout not paid');
+    console.log('✓ End-of-day summary');
+  }
   console.log('All core tests passed');
 })().catch((e) => { console.error(e); process.exit(1); });

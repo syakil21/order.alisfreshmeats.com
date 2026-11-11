@@ -59,6 +59,8 @@ input, textarea { font: inherit; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 4px; }
 .chip { font-size: 13px; padding: 5px 10px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); }
 .chip.open { color: #c9f1d4; border-color: rgba(95,191,122,.5); background: rgba(95,191,122,.1); }
+.langbtn { flex: none; padding: 6px 10px; border: 1px solid rgba(255,255,255,.28); border-radius: 999px; background: transparent; color: #fff; font: 700 12px/1 Archivo, sans-serif; letter-spacing: .04em; cursor: pointer; }
+.chip.pre { color: #ffe3a8; border-color: rgba(240,170,40,.55); background: rgba(240,170,40,.12); }
 .chip.closed { color: #ffd3cf; border-color: rgba(212,42,31,.6); background: rgba(212,42,31,.12); }
 .notice { margin: 12px 0; padding: 12px 14px; border-radius: 12px; background: rgba(240,191,76,.1); border: 1px solid rgba(240,191,76,.35); font-size: 14px; }
 .last-order { display: none; margin: 10px 0 0; font-size: 14px; }

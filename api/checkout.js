@@ -6,7 +6,7 @@ const members = require('../lib/members');
 const { body, send, ip, siteUrl, rid, handler } = require('../lib/http');
 const { buildQuote } = require('../lib/quote');
 const { syncPayment } = require('../lib/fulfil');
-const { shopOpen, distanceKm } = require('../lib/util');
+const { distanceKm, fmtWhen } = require('../lib/util');
 
 const bad = (res, error) => send(res, 400, { error });
 
@@ -24,13 +24,12 @@ module.exports = handler(async (req, res) => {
   const pickup = b.fulfilment === 'pickup';
   if (!pickup && (!String(a.text || '').trim() || !isFinite(parseFloat(a.lat)) || !isFinite(parseFloat(a.lng)))) return bad(res, 'Please choose your delivery address on the map.');
 
-  const { result: q, settings, phone } = await buildQuote({
+  const { result: q, settings, phone, status } = await buildQuote({
     items: b.items, phone: c.phone, couponCode: b.couponCode, member,
     location: pickup ? null : { lat: a.lat, lng: a.lng, address: a.text },
     fulfilment: b.fulfilment, deliveryOption: b.deliveryOption, pickupBranchId: b.pickupBranchId, pickupAt: b.pickupAt, usePoints: !!b.usePoints,
   });
-  const status = shopOpen(settings);
-  if (!status.open) return bad(res, status.message);
+  if (!status.open && !status.preorder) return bad(res, status.message);
   if (!phone) return bad(res, 'Please enter a valid Malaysian phone number.');
   if (!q.lines.length) return bad(res, 'Your cart is empty.');
   if (q.errors.length) return bad(res, q.errors[0]);
@@ -77,15 +76,16 @@ module.exports = handler(async (req, res) => {
     items: q.lines, subtotalSen: q.subtotalSen, discounts: q.discounts, discountSen: q.discountSen,
     couponCode: q.couponCode, welcome: !!q.welcomeApplied,
     pointsUsed: q.points.used || 0, pointsSen: q.points.sen || 0, pointsEarned: member ? q.points.earned || 0 : 0,
-    deliverySen: q.deliverySen, deliveryQuoteRM: q.deliveryQuoteRM || 0, totalSen: q.totalSen,
+    smallOrderSen: q.smallOrderSen || 0, deliverySen: q.deliverySen, deliveryQuoteRM: q.deliveryQuoteRM || 0, totalSen: q.totalSen,
     weightKg: q.weightKg, distanceKm: q.distanceKm,
     payment: { status: 'pending' }, print: {}, delivery: {}, prep: {}, log: [], checkoutSig: sig,
   };
   if (q.fulfilment === 'pickup') order.pickup = { branchId: q.branch.id, at: q.pickupAt };
   else order.deliveryOption = q.deliveryOption;
+  if (status.preorder) { order.preorder = true; if (q.scheduledFor) order.scheduledFor = q.scheduledFor; }
   if (Array.isArray(b.pushSubs)) order.pushSubs = b.pushSubs.filter((x) => /^[a-f0-9]{24}$/.test(x)).slice(0, 3);
   const how = q.fulfilment === 'pickup' ? `self pickup at ${q.branch.name}` : `${({ regular: 'standard', priority: 'priority', saver: 'saver' })[q.deliveryOption] || 'standard'} delivery`;
-  store.addLog(order, `Order placed${member ? ` by member ${member.name}` : ''} (${how}), waiting for payment`);
+  store.addLog(order, `Order placed${member ? ` by member ${member.name}` : ''} (${how}${order.preorder ? `, ordered ahead while closed${order.scheduledFor ? ` for ${fmtWhen(Date.parse(order.scheduledFor))}` : ''}` : ''}), waiting for payment`);
 
   // Members: keep their email up to date and save a new address if they ticked "save"
   if (member) {

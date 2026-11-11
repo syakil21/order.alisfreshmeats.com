@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node scripts/dev-server.js",
-    "test": "node scripts/test-core.js"
+    "test": "node scripts/test-core.js",
+    "test:e2e": "node scripts/e2e/run.js"
   },
   "engines": {
     "node": ">=20"

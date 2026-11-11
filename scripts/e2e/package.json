@@ -1,0 +1,9 @@
+{
+  "name": "alisfreshmeats-e2e",
+  "private": true,
+  "description": "Browser tests for the ordering app. Kept apart from the main package so the live server never installs them.",
+  "devDependencies": {
+    "leaflet": "^1.9.4",
+    "playwright": "^1.48.0"
+  }
+}

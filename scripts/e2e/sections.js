@@ -1,0 +1,33 @@
+const { chromium } = require('playwright');
+// Menu sections: rename, reorder, add an item. Run with: node scripts/e2e/run.js
+const path = require('path');
+const B = process.env.BASE || 'http://localhost:3000'; const OUT = process.env.OUT || path.join(__dirname, '.out');
+require('fs').mkdirSync(OUT, { recursive: true });
+(async () => {
+  const browser = await chromium.launch({ args: ['--no-sandbox'] });
+  const errors = []; const ok = (c, m) => { if (!c) errors.push(m); console.log(c ? '✓' : '✗', m); };
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  await ctx.route('https://fonts.googleapis.com/**', (r) => r.fulfill({ body: '', contentType: 'text/css' }));
+  const a = await ctx.newPage(); a.on('pageerror', (e) => errors.push(e.message));
+  const answers = []; a.on('dialog', (d) => d.accept(answers.length ? answers.shift() : d.defaultValue()));
+  await a.goto(B + '/admin.html'); await a.fill('#lname', 'Syakil'); await a.fill('#pass', '1234'); await a.click('#loginForm button');
+  await a.waitForSelector('#storeTitle'); await a.click('.nav [data-tab="menu"]'); await a.waitForSelector('.cathead');
+  answers.push('Imported Mutton (Australia)');
+  await a.click('.cathead:has-text("Imported Mutton") [data-catrename]'); await a.waitForSelector('#toast:has-text("Renamed")');
+  let cat = await (await fetch(B + '/api/catalog')).json();
+  ok(cat.products.filter((p) => p.category === 'Imported Mutton (Australia)').length === 8 && !cat.products.some((p) => p.category === 'Imported Mutton'), 'renamed section: all 8 items moved, shop updated');
+  await a.click('.cathead:has-text("Lamb Selection") [data-catmove][data-dir="-1"]'); await a.waitForSelector('#toast:has-text("Section moved")');
+  cat = await (await fetch(B + '/api/catalog')).json();
+  ok(JSON.stringify([...new Set(cat.products.map((p) => p.category))]) === JSON.stringify(['Local Fresh Meat', 'Lamb Selection', 'Imported Mutton (Australia)']), 'section moved up on the shop');
+  await a.click('.cathead:has-text("Lamb Selection") [data-catadd]'); await a.waitForSelector('#drawer.show [data-k="category"]');
+  ok((await a.inputValue('#drawer [data-k="category"]')) === 'Lamb Selection', '+ Item opens a new item in that section');
+  await a.click('#drawer [data-close] >> nth=0');
+  ok(!/\(new item\)/.test(await a.textContent('#menuList')), 'closing a blank new item removes it');
+  await a.screenshot({ path: `${OUT}/28-menu-sections.png` });
+  const s = await browser.newContext({ viewport: { width: 1000, height: 700 } }); const sp = await s.newPage();
+  await sp.goto(B + '/'); await sp.waitForSelector('.cat h3');
+  ok(/Imported Mutton \(Australia\)/i.test(await sp.textContent('#menu')), 'shop shows the new section name');
+  await browser.close();
+  console.log(errors.length ? 'PROBLEMS: ' + errors.join('; ') : 'ALL GOOD');
+  process.exit(errors.length ? 1 : 0);
+})().catch((e) => { console.error(e); process.exit(1); });

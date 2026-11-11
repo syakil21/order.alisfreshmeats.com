@@ -101,9 +101,15 @@
   const paintSound = () => { $('#soundBtn').textContent = sound ? '🔔 Order sound on' : '🔕 Order sound off'; };
   $('#soundBtn').addEventListener('click', () => { sound = !sound; ls.set('afm_sound', sound ? '1' : null); paintSound(); if (sound) chime(); });
 
-  async function loadHome() {
+  // quick = the timer's check: one tiny request that only says "nothing changed" (keeps database use low).
+  // A full reload still happens at least every 5 minutes, and straight away when anything changed.
+  let ver = 0; let lastFull = 0; let lastPoll = 0;
+  async function loadHome(quick) {
     try {
-      const d = await api('home');
+      lastPoll = Date.now();
+      const d = await api('home', quick === true && ver && Date.now() - lastFull < 5 * 60000 ? { since: ver } : {});
+      if (d.unchanged) { renderBoard(); return; }
+      ver = d.ver || 0; lastFull = Date.now();
       const fresh = [];
       for (const o of d.orders) if (o.paid && !seenPaid.has(o.id)) { if (!firstLoad) { fresh.push(o); freshIds.add(o.id); } seenPaid.add(o.id); }
       home = d; firstLoad = false;
@@ -125,12 +131,13 @@
     if (!s.acceptingOrders) { title = 'Online ordering is OFF'; sub = 'Customers can browse but cannot order. Turn the switch on to take orders.'; }
     else if (paused) { title = `Paused until ${fmtTime(s.pausedUntil)}`; sub = 'Orders start again automatically.'; }
     else if (s.open) { title = 'Open for online orders today'; sub = s.message; }
+    else if (s.preorder) { title = 'Closed now · taking orders ahead'; sub = `${s.message} New orders are prepared when the shop opens.`; }
     else { title = 'Closed now'; sub = s.message; }
     $('#storeTitle').textContent = title; $('#storeSub').textContent = sub;
     $('#pauseBtns').innerHTML = !isSuper() ? (me?.branchNames?.length ? `<span class="tag t-pay">${esc(me.branchNames.join(', '))} orders</span>` : '')
       : paused ? '<button class="btn go" type="button" data-resume>Resume now</button>'
       : s.acceptingOrders ? '<span class="muted" style="align-self:center">Busy? Pause:</span><button class="btn sm" type="button" data-pause="30">30 min</button><button class="btn sm" type="button" data-pause="60">1 hour</button><button class="btn sm" type="button" data-pause="today">Rest of today</button>' : '';
-    const ts = $('#topStatus'); ts.textContent = !s.acceptingOrders ? 'Off' : paused ? 'Paused' : s.open ? 'Open' : 'Closed'; ts.className = 'tag ' + (on && s.open ? 't-done' : paused ? 't-prep' : 't-bad');
+    const ts = $('#topStatus'); ts.textContent = !s.acceptingOrders ? 'Off' : paused ? 'Paused' : s.open ? 'Open' : s.preorder ? 'Pre-orders' : 'Closed'; ts.className = 'tag ' + (on && s.open ? 't-done' : paused ? 't-prep' : 't-bad');
   }
   $('#storeSwitch').addEventListener('change', async (e) => {
     const want = e.target.checked;
@@ -186,6 +193,7 @@
     if (o.fulfilment === 'pickup') return `<span class="tag t-pick">🛍 Pickup ${o.pickupAt ? esc(whenText(Date.parse(o.pickupAt))) : ''}</span>`;
     if (o.deliveryOption === 'priority') return '<span class="tag t-dark">⚡ Priority</span>';
     if (o.deliveryOption === 'saver') return '<span class="tag t-pay">Pooling</span>';
+    if (o.preorder && o.pickupAt && Date.parse(o.pickupAt) > Date.now()) return `<span class="tag t-pick">🕘 Delivery ${esc(whenText(Date.parse(o.pickupAt)))}</span>`;
     return '<span class="tag t-pay">🛵 Delivery</span>';
   }
   function statusLine(o) {
@@ -240,6 +248,11 @@
     if (boardTab === 'later') list = list.sort((a, b) => Date.parse(a.pickupAt) - Date.parse(b.pickupAt));
     if (boardTab === 'preparing') list = list.sort((a, b) => a.createdAt - b.createdAt); // oldest first, like a kitchen queue
     $('#board').innerHTML = list.map(orderCard).join('') || `<div class="empty" style="grid-column:1/-1">${q ? 'No orders match.' : { preparing: 'No orders to prepare. New paid orders appear here with a sound.', ready: 'Nothing waiting for collection or on the way.', attention: 'All good. Nothing needs attention.', later: 'No pickups booked for later.', done: 'No completed orders yet today.', unpaid: 'Nobody is checking out right now.', all: 'No orders yet.', deleted: 'No deleted orders.' }[boardTab]}</div>`;
+    // red bar while any paid order has a problem (sticker not printed, Lalamove not booked / cancelled / expired)
+    const bad = home.orders.filter(GROUPS.find((g) => g[0] === 'attention')[2]);
+    const bar = $('#attnBar');
+    bar.classList.toggle('hidden', !bad.length || boardTab === 'attention');
+    if (bad.length) bar.innerHTML = `<b>⚠ ${bad.length} order${bad.length > 1 ? 's need' : ' needs'} attention:</b> ${bad.slice(0, 4).map((o) => `${esc(o.no)} (${esc(o.problem)})`).join(', ')}${bad.length > 4 ? '…' : ''} <u>Show</u>`;
     const n = counts.preparing + counts.attention;
     for (const id of ['#navDot', '#bnavDot']) { const d = $(id); if (d) { d.textContent = n; d.classList.toggle('hidden', !n); } }
   }
@@ -250,6 +263,7 @@
     if (boardTab === 'deleted') { try { deletedOrders = (await api('orders.deleted')).orders; renderBoard(); } catch (err) { toast(err.message); } }
   });
   $('#search').addEventListener('input', () => renderBoard());
+  $('#attnBar').addEventListener('click', () => { boardTab = 'attention'; renderBoard(); });
   $('#board').addEventListener('click', (e) => {
     if (e.target.closest('[data-stop]')) return; // links on the card (call driver)
     const btn = e.target.closest('[data-cact]');
@@ -321,13 +335,14 @@
         ${pickup ? `<dt>Self pickup</dt><dd><b>${esc(o.branchName)}</b> · ${o.pickup?.at ? esc(whenText(Date.parse(o.pickup.at))) : ''}${o.address?.notes ? `<br><b>Note:</b> ${esc(o.address.notes)}` : ''}</dd>`
         : `<dt>Deliver to</dt><dd>${esc(o.address.text)}${o.address.unit ? `<br><b>Unit:</b> ${esc(o.address.unit)}` : ''}${o.address.notes ? `<br><b>Note:</b> ${esc(o.address.notes)}` : ''}<br><a href="https://www.google.com/maps?q=${o.address.lat},${o.address.lng}" target="_blank" rel="noopener">Open in Google Maps</a>${o.distanceKm ? ` · ${o.distanceKm} km` : ''}</dd>
         <dt>From</dt><dd>${esc(o.branchName)}</dd>`}
-        <dt>Placed</dt><dd>${fmtDT(o.createdAt)}</dd>
+        <dt>Placed</dt><dd>${fmtDT(o.createdAt)}${o.preorder ? ` <span class="tag t-pick">ordered ahead${o.scheduledFor ? ` for ${esc(whenText(Date.parse(o.scheduledFor)))}` : ''}</span>` : ''}</dd>
       </dl></div>
       <div class="card"><table class="list">
         ${o.items.map((i) => `<tr><td>${esc(i.name)}${i.category ? ` <span class="tag t-pay">${esc(i.category)}</span>` : ''}${i.cutText ? `<div class="cutline">✂ ${esc(i.cutText)}</div>` : ''}</td><td><b>${qtyText(i.qty, i.unit)}</b></td><td class="num">${rm(i.lineSen)}</td></tr>`).join('')}
         <tr><td colspan="2">Subtotal</td><td class="num">${rm(o.subtotalSen)}</td></tr>
         ${(o.discounts || []).map((x) => `<tr><td colspan="2">${esc(x.label)}</td><td class="num">− ${rm(x.sen)}</td></tr>`).join('')}
         ${o.pointsSen ? `<tr><td colspan="2">Points used (${o.pointsUsed})</td><td class="num">− ${rm(o.pointsSen)}</td></tr>` : ''}
+        ${o.smallOrderSen ? `<tr><td colspan="2">Small order fee</td><td class="num">${rm(o.smallOrderSen)}</td></tr>` : ''}
         <tr><td colspan="2">${pickup ? 'Self pickup' : `Delivery charged (${({ priority: 'Priority', saver: 'Pooling' })[o.deliveryOption] || 'Regular'})`}</td><td class="num">${rm(o.deliverySen)}</td></tr>
         <tr><td colspan="2"><b>Total</b></td><td class="num"><b>${rm(o.totalSen)}</b></td></tr>
         ${o.originalTotalSen != null && o.originalTotalSen !== o.totalSen ? `<tr><td colspan="2">Customer paid</td><td class="num">${rm(o.originalTotalSen)}</td></tr><tr><td colspan="2"><b class="${o.totalSen > o.originalTotalSen ? 'bad' : 'ok'}">${o.totalSen > o.originalTotalSen ? 'To collect from customer' : 'To refund to customer'}</b></td><td class="num"><b>${rm(Math.abs(o.totalSen - o.originalTotalSen))}</b></td></tr>` : ''}
@@ -607,6 +622,15 @@
     loadInsights();
   });
   $('#rGo').addEventListener('click', () => loadInsights());
+  // paid orders of the chosen period as a spreadsheet file (opens in Excel / Google Sheets)
+  $('#exportBtn').addEventListener('click', (e) => busy(e.target, async () => {
+    const r = await api('orders.export', { range, from: $('#rFrom').value, to: $('#rTo').value });
+    if (!r.count) return toast('No paid orders in this period.');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(['\ufeff' + r.csv], { type: 'text/csv;charset=utf-8' })); a.download = r.filename;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    toast(`${r.count} order${r.count > 1 ? 's' : ''} downloaded`);
+  }));
   async function loadInsights() {
     $('#insights').style.opacity = 0.5;
     try { ins = await api('insights', { range, from: $('#rFrom').value, to: $('#rTo').value }); renderInsights(); }
@@ -648,6 +672,7 @@
           <span>Discounts given</span><span class="num">${rm(x.discountSen)}</span>
           <span>Points used by customers</span><span class="num">${rm(x.pointsSen)}</span>
           <span>Points earned</span><span class="num">${x.pointsEarned}</span>
+          <span>Small order fees collected</span><span class="num">${rm(x.smallOrderSen)}</span>
           <span class="sep"></span>
           <span>Checkouts not paid</span><span class="num">${x.unpaid}</span>
           <span>Cancelled orders</span><span class="num">${x.cancelled}</span>
@@ -901,9 +926,17 @@
 
   // ---------- staff phone alerts (web push) ----------
   let swReg = null;
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').then(() => navigator.serviceWorker.ready).then((r) => { swReg = r; paintPush(); }).catch(() => {});
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').then(() => navigator.serviceWorker.ready).then((r) => { swReg = r; paintPush(); syncPush(); }).catch(() => {});
   const b64ToBytes = (s) => { const p = '='.repeat((4 - (s.length % 4)) % 4); const raw = atob((s + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from([...raw].map((c) => c.charCodeAt(0))); };
   const pushOn = () => ls.get('afm_staffpush') === '1' && 'Notification' in window && Notification.permission === 'granted';
+  // once a day, tell the server who this phone belongs to (branch, super admin) so alerts go to the right people
+  async function syncPush() {
+    try {
+      if (!token || !pushOn() || !swReg || ls.get('afm_pushsync') === dayKey(Date.now())) return;
+      const sub = await swReg.pushManager.getSubscription(); if (!sub) return;
+      await api('staffPush.save', { subscription: sub.toJSON(), quiet: true }); ls.set('afm_pushsync', dayKey(Date.now()));
+    } catch {}
+  }
   function paintPush() { $('#pushBtn').textContent = pushOn() ? '📱 New-order alerts on this phone: ON' : '📱 Turn on new-order alerts on this phone'; }
   $('#pushBtn').addEventListener('click', (e) => busy(e.target, async () => {
     const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) && !(window.matchMedia('(display-mode: standalone)').matches || navigator.standalone);
@@ -923,10 +956,12 @@
     $('#loginView').classList.add('hidden'); $('#appView').classList.remove('hidden');
     buildNav(); paintSound(); paintPush(); showTab('home');
     await loadHome();
-    clearInterval(pollTimer); pollTimer = setInterval(loadHome, 15000);
+    // every 15 s while the page is in front, once a minute in the background (phone alerts still arrive at once)
+    clearInterval(pollTimer); pollTimer = setInterval(() => { if (document.hidden && Date.now() - lastPoll < 58000) return; loadHome(true); }, 15000);
+    syncPush();
     openFromHash();
   }
-  document.addEventListener('visibilitychange', () => { if (!document.hidden && token && home) loadHome(); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && token && home) loadHome(true); });
   // #order=<id> or #no=AFM-1006 (label QR code, activity log links)
   async function openFromHash() {
     const m = location.hash.match(/^#order=(.+)$/); if (m) return openOrder(decodeURIComponent(m[1]));

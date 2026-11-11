@@ -95,11 +95,11 @@
     }
     $('#wa').href = `https://wa.me/${catalog.shop.whatsapp}`;
     const chip = $('#openChip');
-    chip.textContent = catalog.open ? catalog.openMessage : 'Closed now';
-    chip.className = 'chip ' + (catalog.open ? 'open' : 'closed');
+    chip.textContent = catalog.open ? catalog.openMessage : catalog.preorder ? 'Closed now · order ahead' : 'Closed now';
+    chip.className = 'chip ' + (catalog.open ? 'open' : catalog.preorder ? 'pre' : 'closed');
     $('#areaNote').textContent = catalog.shop.deliveryAreaNote || '';
     const notes = [];
-    if (!catalog.open) notes.push(catalog.openMessage + ' You can still browse the menu.');
+    if (!catalog.open) notes.push(catalog.openMessage + (catalog.preorder ? ' Pay now and we prepare your order as soon as we open, or choose a self pickup time.' : ' You can still browse the menu.'));
     if (!catalog.deliveryReady) notes.push('Online delivery is being set up. Please WhatsApp us to order for now.');
     if (notes.length) { $('#notice').hidden = false; $('#notice').textContent = notes.join(' '); }
     $('#checkoutNote').textContent = catalog.shop.checkoutNote || '';
@@ -534,13 +534,14 @@
     if (quote.fulfilment === 'pickup') delivery = `<tr><td>Self pickup <span class="muted">(${esc(quote.branch?.name || '')})</span></td><td>Free</td></tr>`;
     else if (quote.deliverySen != null) {
       const opt = (quote.deliveryOptions || []).find((o) => o.id === quote.deliveryOption);
-      delivery = `<tr><td>${opt && quote.deliveryOptions.length > 1 ? `${esc(opt.label)} delivery` : 'Delivery'} <span class="muted">(Lalamove${quote.distanceKm ? `, ${quote.distanceKm} km` : ''})</span></td><td>${rm(quote.deliverySen)}</td></tr>`;
+      delivery = `<tr><td>${opt && quote.deliveryOptions.length > 1 ? `${esc(opt.label)} delivery` : 'Delivery'} <span class="muted">(Lalamove${quote.distanceKm ? `, ${quote.distanceKm} km` : ''})</span>${quote.scheduledText ? `<div class="muted">We're closed now. Driver collects around ${esc(quote.scheduledText)}</div>` : ''}</td><td>${rm(quote.deliverySen)}</td></tr>`;
     } else if (quote.deliveryError) delivery = `<tr><td colspan="2" class="msg err">${esc(quote.deliveryError)}</td></tr>`;
     else delivery = `<tr><td>Delivery</td><td class="muted">Set your address</td></tr>`;
     $('#sum').innerHTML = `
       <tr><td>Subtotal</td><td>${rm(quote.subtotalSen)}</td></tr>
       ${(quote.discounts || []).map((d) => `<tr class="disc"><td>${esc(d.label)}</td><td>− ${rm(d.sen)}</td></tr>`).join('')}
       ${quote.points?.sen ? `<tr class="disc"><td>Points (${quote.points.used})</td><td>− ${rm(quote.points.sen)}</td></tr>` : ''}
+      ${quote.smallOrderSen ? `<tr><td>Small order fee <span class="muted">(orders under ${rm(quote.smallOrderBelowSen)})</span><div class="muted">Add ${rm(quote.smallOrderBelowSen - quote.subtotalSen)} more to remove this fee</div></td><td>${rm(quote.smallOrderSen)}</td></tr>` : ''}
       ${delivery}
       <tr class="tot"><td>Total</td><td>${ready ? rm(quote.totalSen) : '—'}</td></tr>
       ${(quote.errors || []).map((e) => `<tr><td colspan="2" class="msg err">${esc(e)}</td></tr>`).join('')}`;
@@ -550,7 +551,7 @@
     const b = $('#payBtn'); let why = '';
     const addr = picker?.get();
     if (!cart.length) why = 'Your cart is empty';
-    else if (!catalog.open) why = 'Closed for orders now';
+    else if (!catalog.open && !catalog.preorder) why = 'Closed for orders now';
     else if (!quote || quoting) why = 'Updating prices…';
     else if (quote.errors?.length) why = quote.errors[0];
     else if (fulfilment === 'pickup') { if (quote.fulfilment !== 'pickup') why = 'Updating…'; else if (!quote.pickupAt) why = quote.pickupSlots?.length ? 'Choose a pickup time' : 'No pickup times available'; }

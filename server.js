@@ -14,6 +14,11 @@ const server = http.createServer(async (req, res) => {
   const u = new URL(req.url, 'http://localhost');
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  // no other website may show these pages inside its own page (stops "clickjacking" of the staff dashboard)
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('Content-Security-Policy', "frame-ancestors 'self'");
+  // browsers that have visited once always use https afterwards
+  res.setHeader('Strict-Transport-Security', 'max-age=15552000');
   const qr = u.pathname.match(/^\/s\/([\w-]+)\/?$/i); // label QR codes: /S/AFM-1006
   if (qr) { req.url = `/api/s?no=${encodeURIComponent(qr[1])}`; return handlers.s(req, res); }
   const m = u.pathname.match(/^\/api\/([\w-]+)\/?$/);
@@ -37,3 +42,8 @@ const server = http.createServer(async (req, res) => {
 
 const PORT = Number(process.env.PORT || 3000);
 server.listen(PORT, () => console.log(`Ali's Fresh Meats running on port ${PORT}`));
+
+// End-of-day sales summary to super admins' phones (checks the clock every 5 minutes; reads the database once a day)
+const daily = require('./lib/daily');
+setInterval(() => daily.tick().catch(() => {}), 5 * 60000).unref();
+setTimeout(() => daily.tick().catch(() => {}), 20000).unref();

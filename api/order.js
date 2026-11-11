@@ -30,7 +30,7 @@ module.exports = handler(async (req, res) => {
     no: order.no, createdAt: order.createdAt, name: order.customer.name, branchName: order.branchName,
     fulfilment: pickup ? 'pickup' : 'delivery', deliveryOption: order.deliveryOption || '',
     address: order.address.text, unit: order.address.unit,
-    shop: pickup ? { name: branch.name, address: branch.address || '', lat: branch.lat, lng: branch.lng, phone: branch.phone || '' } : null,
+    shop: pickup ? { name: branch.name, address: branch.address || '', lat: branch.lat, lng: branch.lng, phone: branch.phone || '', mapsUrl: branch.mapsUrl || '' } : null,
     items: order.items.map(({ name, qty, unit, lineSen, cutText }) => ({ name, qty, unit, lineSen, cutText: cutText || '' })),
     subtotalSen: order.subtotalSen, discounts: order.discounts || [], smallOrderSen: order.smallOrderSen || 0, deliverySen: order.deliverySen, totalSen: order.totalSen,
     advance: !!order.advance,

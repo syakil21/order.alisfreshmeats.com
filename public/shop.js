@@ -413,7 +413,7 @@
       $('#pickupBranches').innerHTML = list.map((b) => chip('data-pbranch', b.id, b.id === pickupBranchId, b.name)).join('');
       const b = list.find((x) => x.id === pickupBranchId);
       $('#shopCard').hidden = !b;
-      if (b) $('#shopCard').innerHTML = `<b>Ali's Fresh Meats ${esc(b.name)}</b>${esc(b.address)}${b.lat ? `<br><a href="https://maps.google.com/?q=${encodeURIComponent(b.lat + ',' + b.lng)}" target="_blank" rel="noopener">Open in Maps</a>` : ''}`;
+      if (b) $('#shopCard').innerHTML = `<b>Ali's Fresh Meats ${esc(b.name)}</b>${esc(b.address)}<br><a href="${esc((b.mapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`Ali's Fresh Meats ${b.name}, ${b.address}`)}`))}" target="_blank" rel="noopener">Open in Maps</a>`; // the shop's own Google Maps page if set, else a search for the shop by name and address (a bare pin opens whatever business is nearest)
     }
     renderSlots();
   }

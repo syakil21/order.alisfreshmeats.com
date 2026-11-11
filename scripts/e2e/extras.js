@@ -185,6 +185,19 @@ const HOME = { lat: 3.2080, lng: 101.6370, text: '12 Jalan Kepong Baru, 52100 Ku
   const stok = (await J('/api/admin', { action: 'login', name: 'Kumar', password: 'pass1' })).d.token;
   ok((await A('orders.export', { range: 'today' }, stok)).status === 403, 'normal staff cannot download the spreadsheet');
 
+  // ---------- map link of each shop ----------
+  let cur = (await A('settings.get')).d.settings;
+  let pb = (await J('/api/quote', { items: [{ productId: 'boneless-meat', qty: 1 }], fulfilment: 'pickup' })).d.pickupBranches;
+  ok(pb.every((b) => b.mapsUrl === ''), 'no Google Maps link saved yet: the shop page searches Maps for the shop by name and address');
+  await p.click('#openCart'); await p.click('#fulfilSeg [data-ful="pickup"]'); await p.waitForSelector('#shopCard a');
+  const href0 = await p.getAttribute('#shopCard a', 'href');
+  ok(/^https:\/\/www\.google\.com\/maps\/search\/\?api=1&query=Ali's%20Fresh%20Meats%20/.test(href0) && !/query=-?\d+\.\d+%2C/.test(href0), `"Open in Maps" searches for the shop, not a bare pin: ${decodeURIComponent(href0).slice(0, 110)}…`);
+  cur.branches[0].mapsUrl = 'https://maps.app.goo.gl/AbCdEf123'; cur.branches[1].mapsUrl = 'https://evil.example.com/maps';
+  await A('settings.save', { settings: cur });
+  pb = (await J('/api/quote', { items: [{ productId: 'boneless-meat', qty: 1 }], fulfilment: 'pickup' })).d.pickupBranches;
+  ok(pb[0].mapsUrl === 'https://maps.app.goo.gl/AbCdEf123' && pb[1].mapsUrl === '', 'a pasted Google Maps link is used for that branch; links to other websites are ignored');
+  await p.click('#sheet button.x');
+
   // ---------- end-of-day summary (close the shop first: last order 00:01) ----------
   const settings = (await A('settings.get')).d.settings;
   const closed = { ...settings, hours: { open: '00:00', close: '00:01', closedDays: [] } };
@@ -214,6 +227,7 @@ const HOME = { lat: 3.2080, lng: 101.6370, text: '12 Jalan Kepong Baru, 52100 Ku
   await p.goto(B + '/'); await p.waitForSelector('.item');
   ok(/Closed now · order ahead/.test(await p.textContent('#openChip')) && /Pay now and we prepare your order as soon as we open/.test(await p.textContent('#notice')), 'shop page: "Closed now · order ahead" with an explanation');
   await p.click('#openCart');
+  await p.click('#fulfilSeg [data-ful="delivery"]');
   await p.waitForFunction(() => /Driver collects around/.test(document.querySelector('#sum').textContent), null, { timeout: 20000 });
   ok(/We're closed now\. Driver collects around Tomorrow 12:30am/.test(await p.textContent('#sum')), 'closed: checkout says the driver collects when the shop opens');
   await p.click('#fulfilSeg [data-ful="pickup"]'); await p.waitForSelector('[data-pslot]'); await p.click('[data-pslot]');

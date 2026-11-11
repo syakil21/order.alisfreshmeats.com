@@ -609,6 +609,8 @@ const actions = {
         lat: isFinite(parseFloat(br.lat)) ? String(parseFloat(br.lat)) : '', lng: isFinite(parseFloat(br.lng)) ? String(parseFloat(br.lng)) : '',
         phone: normalizePhone(br.phone) || '', printerId: str(br.printerId, 20).replace(/\D/g, ''), active: br.active !== false,
         radiusKm: Math.min(300, Math.max(1, num(br.radiusKm, 50))),
+        // the shop's own page on Google Maps (Share → Copy link). Only Google links are kept.
+        mapsUrl: /^https:\/\/(maps\.app\.goo\.gl|goo\.gl|g\.co|share\.google|(www\.|maps\.)?google\.[a-z.]+)\//i.test(str(br.mapsUrl, 500)) ? str(br.mapsUrl, 500) : '',
       })).filter((br) => br.name),
     };
     for (const br of next.branches) if (br.active && br.address && (!br.lat || !br.lng)) throw httpError(400, `${br.name}: add the map coordinates (lat, lng).`);

@@ -298,9 +298,9 @@ A customer who fills the cart and opens the payment page, but does not pay, has 
 
 ## Members only, and the order confirmation
 
-- **Members only** (Settings → Ordering hours, on by default): a customer must log in or sign up before paying.
+- **Members only** (Settings → Ordering hours, off by default so guests can order): when ticked, a customer must log in or sign up before paying.
   A guest can still browse and fill the cart; the Pay button reads "Log in or sign up to pay" and takes them to
-  the sign-up page, then straight back to the checkout with the cart kept. Untick it to allow guests again.
+  the sign-up page, then straight back to the checkout with the cart kept.
 - **Order confirmation**: after Billplz confirms the payment, the customer's order page shows a green
   "✅ Order confirmed" box with the amount, the time and the Billplz receipt number. Without payment the page
   says "Not confirmed yet" and never shows that box. Ask a customer for this page if there is any doubt.

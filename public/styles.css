@@ -326,3 +326,9 @@ label.check { display: flex; align-items: center; gap: 8px; font-size: 14px; mar
 .soldtag { display: inline-block; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); font-size: 13px; font-weight: 700; }
 .slotdays .opt { white-space: nowrap; }
 #laterBox { margin-top: 10px; }
+.loginbtns { display: flex; gap: 8px; margin-top: 10px; }
+.loginbtns .lb { flex: 1; text-align: center; padding: 11px 10px; border-radius: 10px; background: #2a2118; color: #fff; font-weight: 700; text-decoration: none; }
+.loginbtns .lb.alt { background: transparent; color: #2a2118; border: 1.5px solid #2a2118; }
+.confirmed { background: #e3f4ea; border: 1px solid #b7e0c6; color: #145c36; border-radius: 12px; padding: 12px 14px; margin-bottom: 14px; }
+.confirmed b { display: block; font-size: 17px; }
+.confirmed span { font-size: 14px; }

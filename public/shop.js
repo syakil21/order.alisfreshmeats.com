@@ -380,6 +380,10 @@
       const m = me.member;
       bar.innerHTML = `Ordering as <b>${esc(m.name)}</b> · ${esc(m.phone.replace(/^\+60/, '0'))}${m.email ? ` · ${esc(m.email)}` : ''} <a href="/account.html">My account</a>`;
       $('#guestFields').hidden = true;
+    } else if (catalog.requireMember) {
+      const w = catalog.welcome; const next = encodeURIComponent('/#cart');
+      bar.innerHTML = `<b>Log in or sign up to order.</b> It takes a minute, and your cart is kept.${w ? ` New members get RM${w.amount} off.` : ''}<span class="loginbtns"><a class="lb" href="/account.html?signup=1&next=${next}">Sign up</a><a class="lb alt" href="/account.html?next=${next}">Log in</a></span>`;
+      $('#guestFields').hidden = true;
     } else {
       const w = catalog.welcome;
       bar.innerHTML = `Have an account? <a href="/account.html?next=${encodeURIComponent('/#cart')}">Log in</a>${w ? ` · New member? <a href="/account.html?signup=1&next=${encodeURIComponent('/#cart')}">Sign up</a> and get RM${w.amount} off` : ''}`;
@@ -588,8 +592,9 @@
     else if (fulfilment === 'pickup') { if (quote.fulfilment !== 'pickup') why = 'Updating…'; else if (!quote.pickupAt) why = quote.pickupSlots?.length ? 'Choose a pickup time' : 'No pickup times available'; }
     else if (!addr) why = 'Set your delivery address';
     else if (quote.deliverySen == null) why = quote.deliveryError ? (quote.outOfArea ? 'Outside delivery area' : 'Delivery not available') : 'Getting delivery price…';
+    const login = !why && catalog.requireMember && !me; // members only: the button takes a guest to sign up / log in
     b.disabled = !!why || paying;
-    b.textContent = paying ? 'Opening payment…' : why || `Pay ${rm(quote.totalSen)}`;
+    b.textContent = paying ? 'Opening payment…' : why || (login ? 'Log in or sign up to pay' : `Pay ${rm(quote.totalSen)}`);
   }
 
   $('#applyCoupon').addEventListener('click', () => { couponCode = $('#coupon').value.trim().toUpperCase(); scheduleQuote(0); });
@@ -598,6 +603,7 @@
 
   // ---------- pay ----------
   $('#payBtn').addEventListener('click', async () => {
+    if (catalog.requireMember && !me) { location.href = `/account.html?signup=1&next=${encodeURIComponent('/#cart')}`; return; }
     const addr = picker?.get();
     if (fulfilment === 'delivery' && !addr) return;
     let customer;

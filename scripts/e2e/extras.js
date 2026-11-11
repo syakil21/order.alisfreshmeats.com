@@ -166,6 +166,7 @@ const HOME = { lat: 3.2080, lng: 101.6370, text: '12 Jalan Kepong Baru, 52100 Ku
   await p.click('#openCart'); await p.waitForSelector('#whenBox:not([hidden]) [data-when="later"]', { timeout: 20000 });
   ok(/As soon as possible/.test(await p.textContent('#whenSeg')) && await p.isHidden('#laterBox'), 'checkout asks "When do you want it?" with "As soon as possible" chosen');
   await p.click('[data-when="later"]');
+  await p.waitForFunction(() => document.querySelector('#payBtn').textContent.trim() === 'Choose a delivery time', null, { timeout: 15000 }).catch(() => {});
   ok((await p.textContent('#payBtn')).trim() === 'Choose a delivery time' && await p.isDisabled('#payBtn'), 'choosing later: Pay waits for a time');
   await p.click(`[data-dday="${dDays[2]}"]`); await p.click(`[data-dslot="${slot.at}"]`);
   await p.waitForFunction(() => /^Pay RM/.test(document.querySelector('#payBtn').textContent));
@@ -208,10 +209,45 @@ const HOME = { lat: 3.2080, lng: 101.6370, text: '12 Jalan Kepong Baru, 52100 Ku
   const stok = (await J('/api/admin', { action: 'login', name: 'Kumar', password: 'pass1' })).d.token;
   ok((await A('orders.export', { range: 'today' }, stok)).status === 403, 'normal staff cannot download the spreadsheet');
 
-  // ---------- map link of each shop ----------
+  // ---------- members only + order confirmation ----------
   let cur = (await A('settings.get')).d.settings;
+  await A('settings.save', { settings: { ...cur, requireMember: true } });
+  ok((await G('/api/catalog')).requireMember === true, 'members-only ordering switched on');
+  const guest = await J('/api/checkout', { items: [{ productId: 'boneless-meat', qty: 1 }], fulfilment: 'pickup', pickupBranchId: 'selayang', pickupAt: (await J('/api/quote', { items: [{ productId: 'boneless-meat', qty: 1 }], fulfilment: 'pickup' })).d.pickupSlots[0].at, customer: { name: 'Guest', phone: '0121110010' }, address: {} });
+  ok(guest.status === 401 && guest.d.needLogin && /log in or sign up/i.test(guest.d.error), `a guest cannot check out: "${guest.d.error}"`);
+  const gp = await ctx.newPage(); gp.on('pageerror', (e) => errors.push('guest pageerror: ' + e.message));
+  await gp.goto(B + '/'); await gp.evaluate(() => { localStorage.removeItem('afm_member'); localStorage.setItem('afm_prefs', JSON.stringify({ fulfilment: 'pickup' })); });
+  await gp.reload(); await gp.waitForSelector('.item');
+  await gp.click('.item[data-id="head"] [data-quick]'); await gp.click('.item[data-id="boneless-meat"] [data-open]'); await gp.click('#itemAdd');
+  await gp.click('#openCart'); await gp.click('#fulfilSeg [data-ful="pickup"]'); await gp.waitForSelector('[data-pslot]'); await gp.click('[data-pslot]');
+  await gp.waitForFunction(() => /Log in or sign up to pay/.test(document.querySelector('#payBtn').textContent));
+  ok(/Log in or sign up to order/.test(await gp.textContent('#loginBar')) && await gp.isHidden('#guestFields'), 'checkout shows "Log in or sign up to order" instead of the guest name and phone boxes');
+  await gp.screenshot({ path: `${OUT}/26-members-only.png` });
+  await gp.click('#payBtn'); await gp.waitForSelector('#signupForm:not([hidden])');
+  ok(/account\.html\?signup=1/.test(gp.url()), 'the button opens the sign-up page');
+  await gp.fill('#signupForm [name="name"]', 'Nurul Member'); await gp.fill('#signupForm [name="phone"]', '0121110011'); await gp.fill('#signupForm [name="password"]', 'secret123');
+  await gp.click('#signupForm button');
+  await gp.waitForSelector('#sheet.show', { timeout: 20000 }); await gp.waitForSelector('[data-pslot]'); await gp.click('[data-pslot]');
+  await gp.waitForFunction(() => /^Pay RM/.test(document.querySelector('#payBtn').textContent));
+  ok(/Ordering as/.test(await gp.textContent('#loginBar')) && /Nurul Member/.test(await gp.textContent('#loginBar')), 'after signing up the customer is back at the checkout with the cart kept');
+  await gp.click('#payBtn'); await gp.waitForURL(/__mock\/billplz/);
+  await gp.goBack(); // left the bank page without paying
+  const mid = await gp.evaluate(() => JSON.parse(localStorage.getItem('afm_last') || 'null'));
+  await gp.goto(`${B}/order.html?id=${mid.id}&t=${mid.t}`); await gp.waitForSelector('.status-card');
+  ok(/Not confirmed yet/.test(await gp.textContent('.status-card')) && !(await gp.locator('.confirmed').count()), 'not paid: the page says "Not confirmed yet" and shows no confirmation');
+  await gp.click('.status-card a.bigbtn'); await gp.waitForURL(/__mock\/billplz/); await gp.click('#pay'); await gp.waitForSelector('.confirmed');
+  const conf = await gp.textContent('.confirmed');
+  ok(/Order confirmed/.test(conf) && /Payment received: RM \d/.test(conf) && /Billplz receipt mb/.test(conf), `paid: "${conf.replace(/\s+/g, ' ').trim()}"`);
+  await gp.screenshot({ path: `${OUT}/27-order-confirmed.png` });
+  await gp.close();
+  await A('settings.save', { settings: { ...cur, requireMember: false } });
+
+  // ---------- map link of each shop ----------
+  cur = (await A('settings.get')).d.settings;
   let pb = (await J('/api/quote', { items: [{ productId: 'boneless-meat', qty: 1 }], fulfilment: 'pickup' })).d.pickupBranches;
   ok(pb.every((b) => b.mapsUrl === ''), 'no Google Maps link saved yet: the shop page searches Maps for the shop by name and address');
+  await p.reload(); await p.waitForSelector('.item'); // (the member's order above emptied the shared cart)
+  await p.click('.item[data-id="boneless-meat"] [data-open]'); await p.click('#itemAdd');
   await p.click('#openCart'); await p.click('#fulfilSeg [data-ful="pickup"]'); await p.waitForSelector('#shopCard a');
   const href0 = await p.getAttribute('#shopCard a', 'href');
   ok(/^https:\/\/www\.google\.com\/maps\/search\/\?api=1&query=Ali's%20Fresh%20Meats%20/.test(href0) && !/query=-?\d+\.\d+%2C/.test(href0), `"Open in Maps" searches for the shop, not a bare pin: ${decodeURIComponent(href0).slice(0, 110)}…`);

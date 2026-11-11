@@ -18,6 +18,7 @@ module.exports = handler(async (req, res) => {
     shop: { name: settings.shopName, whatsapp: settings.whatsapp, checkoutNote: settings.checkoutNote, minOrder: Number(settings.minOrder) || 0, deliveryAreaNote: settings.deliveryAreaNote || '' },
     open: status.open,
     preorder: !!status.preorder,
+    requireMember: !!settings.requireMember,
     smallOrder: settings.smallOrder?.enabled && Number(settings.smallOrder.feeRM) > 0 && Number(settings.smallOrder.belowRM) > 0 ? { belowRM: Number(settings.smallOrder.belowRM), feeRM: Number(settings.smallOrder.feeRM) } : null,
     openMessage: status.message,
     deliveryReady: usableBranches(settings).length > 0,

@@ -42,6 +42,7 @@ module.exports = handler(async (req, res) => {
     paid: order.payment.status === 'paid',
     payUrl: order.payment.status === 'pending' ? order.payment.billUrl : '',
     expired: order.payment.status === 'expired',
+    paidAt: order.payment.paidAt || 0, paidSen: order.payment.paidSen ?? order.totalSen, receipt: order.payment.status === 'paid' ? order.payment.billId || '' : '',
     payBy: order.payment.status === 'pending' ? order.createdAt + Math.max(10, Number(settings.payMinutes) || 30) * 60000 : 0,
     replacedBy: order.payment.status === 'replaced' && order.replacedBy?.id ? await (async () => { const r = await store.getOrder(order.replacedBy.id); return r ? { no: r.no, link: `/order.html?id=${r.id}&t=${r.token}` } : null; })() : null,
     stage: s.key, stageText: s.text,

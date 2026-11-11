@@ -73,6 +73,8 @@
     'Location is not available on this device.': 'Lokasi tidak tersedia pada peranti ini.',
     'Could not get your location.': 'Lokasi anda tidak dapat diperoleh.', 'Please allow location access, or search instead.': 'Sila benarkan akses lokasi, atau buat carian.',
     // ---- order page ----
+    '✅ Order confirmed': '✅ Pesanan disahkan', 'Log in or sign up to order.': 'Log masuk atau daftar untuk memesan.', 'It takes a minute, and your cart is kept.': 'Hanya seminit, dan troli anda disimpan.', 'Log in or sign up to pay': 'Log masuk atau daftar untuk bayar',
+    'Please log in or sign up to place your order.': 'Sila log masuk atau daftar untuk membuat pesanan.',
     'Not confirmed yet': 'Belum disahkan', 'Not paid: order cancelled': 'Tidak dibayar: pesanan dibatalkan', 'We only prepare your order after you pay.': 'Kami hanya menyediakan pesanan selepas anda membayar.',
     'Nothing was charged and nothing will be prepared.': 'Tiada caj dikenakan dan tiada apa yang akan disediakan.',
     'Waiting for payment': 'Menunggu pembayaran', 'Payment not completed': 'Pembayaran belum selesai', 'Complete payment to confirm it.': 'Selesaikan pembayaran untuk mengesahkannya.',
@@ -147,6 +149,8 @@
     [/^From our (.+) shop( · .+)?$/, (m, a, b) => `Dari kedai ${a} kami${b || ''}`],
     [/^\(about (\d+) km from our (.+) shop\)$/, '(kira-kira $1 km dari kedai $2 kami)'],
     // order page
+    [/^Payment received: (RM \S+)(?: on (.+?))?(?: · Billplz receipt (\S+))?$/, (m, a, b, c) => `Bayaran diterima: ${a}${b ? ` pada ${day(b)}` : ''}${c ? ` · resit Billplz ${c}` : ''}`],
+    [/^New members get RM(\S+) off\.$/, 'Ahli baharu dapat potongan RM$1.'],
     [/^We have not received payment for (\S+)\.$/, 'Kami belum menerima bayaran untuk $1.'], [/^Pay before (.+) or it is cancelled\.$/, 'Bayar sebelum $1 atau pesanan dibatalkan.'],
     [/^We did not receive payment for (\S+), so it was cancelled\.$/, 'Kami tidak menerima bayaran untuk $1, jadi pesanan dibatalkan.'],
     [/^Order (\S+) is saved\.$/, 'Pesanan $1 disimpan.'], [/^Order (\S+) was not paid\.$/, 'Pesanan $1 tidak dibayar.'], [/^You checked out again as (\S+)\.$/, 'Anda membuat pesanan semula sebagai $1.'],

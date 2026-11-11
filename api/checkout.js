@@ -30,6 +30,7 @@ module.exports = handler(async (req, res) => {
     fulfilment: b.fulfilment, deliveryOption: b.deliveryOption, pickupBranchId: b.pickupBranchId, pickupAt: b.pickupAt, deliverAt: pickup ? '' : b.deliverAt, usePoints: !!b.usePoints,
   });
   if (!status.open && !status.preorder) return bad(res, status.message);
+  if (settings.requireMember && !member) return send(res, 401, { error: 'Please log in or sign up to place your order.', needLogin: true });
   if (!phone) return bad(res, 'Please enter a valid Malaysian phone number.');
   if (!q.lines.length) return bad(res, 'Your cart is empty.');
   if (q.errors.length) return bad(res, q.errors[0]);

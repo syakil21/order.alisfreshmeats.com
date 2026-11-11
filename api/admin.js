@@ -574,6 +574,7 @@ const actions = {
       acceptingOrders: s.acceptingOrders !== false,
       hours: { open: hhmm(s.hours?.open, cur.hours.open), close: hhmm(s.hours?.close, cur.hours.close), closedDays: (s.hours?.closedDays || []).map(Number).filter((d) => d >= 0 && d <= 6) },
       prepMinutes: Math.max(0, Math.min(600, Math.round(num(s.prepMinutes, cur.prepMinutes)))),
+      requireMember: !!(s.requireMember ?? cur.requireMember),
       payMinutes: Math.max(10, Math.min(720, Math.round(num(s.payMinutes, cur.payMinutes)))),
       serviceType: str(s.serviceType, 30).toUpperCase() || 'MOTORCYCLE',
       heavyOrderKg: Math.max(0, num(s.heavyOrderKg, cur.heavyOrderKg)),

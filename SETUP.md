@@ -295,3 +295,12 @@ A customer who fills the cart and opens the payment page, but does not pay, has 
 - Open a not-paid checkout → "Remind to pay on WhatsApp" sends the customer their payment link.
 - If someone says they ordered: ask for the order number and the Billplz receipt. Search the number on Home.
   Paid shows "Paid" with the time; not paid shows the red tag.
+
+## Members only, and the order confirmation
+
+- **Members only** (Settings → Ordering hours, on by default): a customer must log in or sign up before paying.
+  A guest can still browse and fill the cart; the Pay button reads "Log in or sign up to pay" and takes them to
+  the sign-up page, then straight back to the checkout with the cart kept. Untick it to allow guests again.
+- **Order confirmation**: after Billplz confirms the payment, the customer's order page shows a green
+  "✅ Order confirmed" box with the amount, the time and the Billplz receipt number. Without payment the page
+  says "Not confirmed yet" and never shows that box. Ask a customer for this page if there is any doubt.

@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Oswald:wght@500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/styles.css?v=25">
+  <link rel="stylesheet" href="/styles.css?v=26">
 </head>
 <body>
   <header class="top">
@@ -24,8 +24,8 @@
     </div>
   </header>
   <main class="wrap" id="root"><div class="spinner" aria-label="Loading"></div></main>
-  <script src="/i18n.js?v=25"></script>
-  <script src="/app.js?v=25"></script>
+  <script src="/i18n.js?v=26"></script>
+  <script src="/app.js?v=26"></script>
   <script>
   (() => {
     const $ = (s) => document.querySelector(s);
@@ -111,6 +111,8 @@
         ${o.smallOrderSen ? `<tr><td>Small order fee</td><td>${rm(o.smallOrderSen)}</td></tr>` : ''}
         <tr><td>${o.fulfilment === 'pickup' ? 'Self pickup' : 'Delivery'}</td><td>${o.fulfilment === 'pickup' ? 'Free' : rm(o.deliverySen)}</td></tr>
         <tr class="tot"><td>Total</td><td>${rm(o.totalSen)}</td></tr></table>`;
+      // the confirmation: shown only once the payment has reached us
+      if (o.paid && o.stage !== 'cancelled') head = `<div class="confirmed"><b>✅ Order confirmed</b><span>Payment received: ${rm(o.paidSen)}${o.paidAt ? ` on ${dayTime(new Date(o.paidAt).toISOString())}` : ''}${o.receipt ? ` · Billplz receipt ${esc(o.receipt)}` : ''}</span></div>` + head;
       $('#root').innerHTML = `<div class="status-card">${head}${body}${items}</div>
         <p class="muted" style="text-align:center;color:#b9ae9c">Keep this page to check your order. <a href="/">Order again</a></p>`;
       const nb = $('#notifyBtn');

@@ -27,6 +27,7 @@ const { distanceKm } = require('../lib/util');
 // demo branch locations (made up for local testing only)
 store.saveSettings({
   ...store.DEFAULT_SETTINGS,
+  requireMember: false, // the demo starts with guest checkout on; tests switch members-only on
   hours: { open: '00:00', close: '23:59', closedDays: [] },
   branches: [
     { id: 'selayang', name: 'Selayang', address: 'Demo address, Selayang, Selangor', lat: '3.2526', lng: '101.6499', phone: '+60162053786', printerId: '7350001', active: true },

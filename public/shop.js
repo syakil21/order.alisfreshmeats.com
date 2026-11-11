@@ -7,8 +7,9 @@
     set(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch {} },
   };
   const rm = (sen) => 'RM ' + (Number(sen || 0) / 100).toFixed(2);
-  const qtyText = (q, u) => (u === 'kg' ? `${q} kg` : u === 'set' ? `${q} ${q > 1 ? 'sets' : 'set'}` : `${q} ${q > 1 ? 'pcs' : 'pc'}`);
-  const unitText = (u) => (u === 'kg' ? '/kg' : u === 'set' ? '/set' : '/pc');
+  const UNITS = { kg: ['kg', 'kg'], set: ['set', 'sets'], pc: ['pc', 'pcs'], pack: ['pack', 'packs'], bottle: ['bottle', 'bottles'], bunch: ['bunch', 'bunches'], box: ['box', 'boxes'], tray: ['tray', 'trays'], bird: ['bird', 'birds'] };
+  const qtyText = (q, u) => (u === 'kg' ? `${q} kg` : `${q} ${(UNITS[u] || UNITS.pc)[q > 1 ? 1 : 0]}`);
+  const unitText = (u) => `/${UNITS[u] ? u : 'pc'}`;
   const PLACEHOLDER = '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" aria-hidden="true"><path d="M9 27c-2-8 4-17 14-18 9-1 16 5 16 13 0 7-6 11-13 13-7 2-15 0-17-8Z"/><path d="M16 26c1-5 5-8 10-8" opacity=".6"/><circle cx="31" cy="25" r="3.4"/></svg>';
 
   let catalog = null;

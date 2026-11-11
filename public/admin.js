@@ -12,7 +12,8 @@
   const whenText = (ts) => { const d = dayKey(ts); const t = dayKey(Date.now()); const tm = dayKey(Date.now() + 86400000); return `${d === t ? 'Today' : d === tm ? 'Tomorrow' : new Date(ts).toLocaleDateString('en-MY', { ...tz, weekday: 'short', day: 'numeric', month: 'short' })} ${fmtTime(ts)}`; };
   const ago = (ts) => { const m = Math.round((Date.now() - ts) / 60000); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.floor(m / 60)}h ${m % 60}m ago` : fmtDT(ts); };
   const mins = (ts) => Math.max(0, Math.round((Date.now() - ts) / 60000));
-  const qtyText = (q, u) => (u === 'kg' ? `${q} kg` : u === 'set' ? `${q} ${q > 1 ? 'sets' : 'set'}` : `${q} ${q > 1 ? 'pcs' : 'pc'}`);
+  const UNITS = { kg: ['kg', 'kg'], set: ['set', 'sets'], pc: ['pc', 'pcs'], pack: ['pack', 'packs'], bottle: ['bottle', 'bottles'], bunch: ['bunch', 'bunches'], box: ['box', 'boxes'], tray: ['tray', 'trays'], bird: ['bird', 'birds'] };
+  const qtyText = (q, u) => (u === 'kg' ? `${q} kg` : `${q} ${(UNITS[u] || UNITS.pc)[q > 1 ? 1 : 0]}`);
   const prettyPhone = (p) => String(p || '').replace(/^\+60/, '0');
   const FAIL = ['BOOKING_FAILED', 'CANCELED', 'CANCELLED', 'REJECTED', 'EXPIRED', 'NOT_FOUND'];
   let token = ls.get('afm_admin');
@@ -54,7 +55,7 @@
     $('#bnav').style.gridTemplateColumns = `repeat(${BOTTOM.length}, 1fr)`;
     $('#bnav').innerHTML = BOTTOM.map((k) => `<button type="button" data-tab="${k}">${icon(k)}<span>${k === 'more' ? 'More' : TABS.find((t) => t[0] === k)[1]}</span>${k === 'home' ? '<span class="dot hidden" id="bnavDot"></span>' : ''}</button>`).join('');
     $('#whoami').textContent = me ? `${me.name} · ${isSuper() ? 'Super admin' : `Staff${me.branchNames?.length ? ` · ${me.branchNames.join(', ')}` : ''}`}` : '';
-    $('#addProduct').classList.toggle('hidden', !isSuper()); $('#saveProducts').classList.toggle('hidden', !isSuper());
+    $('#addProduct').classList.toggle('hidden', !isSuper()); $('#addSection').classList.toggle('hidden', !isSuper()); $('#saveProducts').classList.toggle('hidden', !isSuper());
   }
   const loaded = {};
   let tab = 'home';
@@ -289,7 +290,7 @@
 
   // ---------- order drawer ----------
   let openId = null;
-  function openDrawerHTML(html) { $('#drawer').classList.add('show'); $('#drawerBody').innerHTML = html; }
+  function openDrawerHTML(html) { const b = $('#drawerBody'); b.oninput = b.onchange = null; $('#drawer').classList.add('show'); b.innerHTML = html; }
   let blankItem = null; // a new menu item left without a name is dropped when its drawer closes
   function closeDrawer() {
     if (blankItem && !blankItem.id && !String(blankItem.name || '').trim()) { products = products.filter((x) => x !== blankItem); renderProducts(); }
@@ -522,7 +523,7 @@
   async function askStock(p, branchId, value) {
     const br = stockBranches.find((b) => b.id === branchId); if (!br) return;
     const cur = p.stockBy?.[branchId];
-    const v = value !== undefined ? value : prompt(`${br.name}: how many ${p.unit === 'kg' ? 'kg' : p.unit === 'set' ? 'sets' : 'pieces'} of ${p.name} do you have now?\n\nIt goes down by itself when ${br.name} orders are paid. Leave empty to stop counting (no limit).`, cur ?? '');
+    const v = value !== undefined ? value : prompt(`${br.name}: how many ${(UNITS[p.unit] || UNITS.pc)[1]} of ${p.name} do you have now?\n\nIt goes down by itself when ${br.name} orders are paid. Leave empty to stop counting (no limit).`, cur ?? '');
     if (v == null) return;
     try {
       const fresh = (await api('stock.set', { id: p.id, branchId, qty: String(v).trim() })).products;
@@ -546,7 +547,9 @@
           <label class="f">Category<input class="inp" data-k="category" value="${esc(p.category)}" list="cats"></label>
           <label class="f">Note <small style="display:inline">(e.g. “1 set”)</small><input class="inp" data-k="note" value="${esc(p.note)}"></label>
           <label class="f">Price (RM)<input class="inp" data-k="price" type="number" step="0.01" min="0" value="${esc(p.price)}"></label>
-          <label class="f">Sold per<select class="inp" data-k="unit">${['kg', 'set', 'pc'].map((u) => `<option ${p.unit === u ? 'selected' : ''}>${u}</option>`).join('')}</select></label>
+          <label class="f">Sold per<select class="inp" data-k="unit">${Object.keys(UNITS).map((u) => `<option ${p.unit === u ? 'selected' : ''}>${u}</option>`).join('')}</select></label>
+          ${p.unit === 'kg' ? `<label class="f">Customers add<select class="inp" data-k="step">${[0.25, 0.5, 1].map((s) => `<option value="${s}" ${Number(p.step) === s ? 'selected' : ''}>${s} kg at a time</option>`).join('')}</select></label>`
+          : `<label class="f">Weight of one (kg)<input class="inp" data-k="weightKg" type="number" min="0" max="50" step="0.1" value="${esc(p.weightKg || '')}" placeholder="0.5"><small>e.g. 5 for a 5 kg bottle of oil. Heavy orders are sent by car.</small></label>`}
           ${stockBranches.map((b) => `<label class="f">${esc(b.name)} stock${p.id ? '' : ' <small style="display:inline">(save the item first)</small>'}<span class="row" style="gap:6px;flex-wrap:nowrap;margin-top:4px"><input class="inp" data-pstock="${esc(b.id)}" type="number" min="0" step="${p.unit === 'kg' ? 0.5 : 1}" value="${p.stockBy?.[b.id] ?? ''}" placeholder="not counted" style="margin:0" ${p.id ? '' : 'disabled'}><button type="button" class="btn sm" data-pstocksave="${esc(b.id)}" ${p.id ? '' : 'disabled'}>Update</button></span><small>Empty = no limit. Goes down when ${esc(b.name)} orders are paid.</small></label>`).join('')}
         </div>
         <h2 style="margin-top:16px">Cutting choices for customers</h2>
@@ -559,16 +562,17 @@
       <datalist id="cats">${[...new Set(products.map((x) => x.category))].map((c) => `<option value="${esc(c)}">`).join('')}</datalist>
       <div class="row" style="margin-top:14px"><button class="btn pri" type="button" id="pSave" style="flex:1">Save changes</button></div>`);
     const body = $('#drawerBody');
-    body.addEventListener('input', (e) => {
+    body.oninput = (e) => { // (a property, not addEventListener: the editor is redrawn in place and must not stack handlers)
       const k = e.target.dataset.k; const m = e.target.dataset.mode;
       if (m) { const set = new Set(p.cutModes || []); e.target.checked ? set.add(m) : set.delete(m); p.cutModes = MODES.map((x) => x[0]).filter((x) => set.has(x)); }
       else if (k) {
         p[k] = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
-        if (k === 'unit') { p.step = p.unit === 'kg' ? 0.5 : 1; p.min = p.step; }
+        if (k === 'unit') { p.step = p.unit === 'kg' ? 0.5 : 1; p.min = p.step; markDirty(); renderProducts(); return editProduct(i); }
+        if (k === 'step') { p.step = Number(p.step) || 0.5; p.min = p.step; }
       }
       markDirty(); renderProducts();
-    });
-    body.addEventListener('change', (e) => { if (e.target.type === 'checkbox' || e.target.tagName === 'SELECT') e.target.dispatchEvent(new Event('input', { bubbles: true })); });
+    };
+    body.onchange = (e) => { if (e.target.type === 'checkbox' || e.target.tagName === 'SELECT') e.target.dispatchEvent(new Event('input', { bubbles: true })); };
     $('#pPhoto').onclick = () => { if (!p.id) return toast('Save the new item first, then add its photo.'); photoFor = p.id; $('#photoFile').value = ''; $('#photoFile').click(); };
     if ($('#pNoPhoto')) $('#pNoPhoto').onclick = (e) => confirm(`Remove the photo of ${p.name}?`) && busy(e.target, async () => { mergeImages((await api('products.imageRemove', { id: p.id })).products); editProduct(i); });
     body.querySelectorAll('[data-pstocksave]').forEach((btn) => (btn.onclick = () => askStock(p, btn.dataset.pstocksave, body.querySelector(`[data-pstock="${btn.dataset.pstocksave}"]`).value)));
@@ -601,6 +605,18 @@
       const i = products.findIndex((p) => p.id === photoFor); if (i >= 0 && $('#drawer').classList.contains('show')) editProduct(i);
     } catch (err) { toast(err.message); }
     photoFor = null;
+  });
+  // a section is simply the group its items belong to, so a new section starts with its first item
+  $('#addSection').addEventListener('click', () => {
+    const name = (prompt('Name of the new section (e.g. Chicken, Vegetables, Cooking Oil & Groceries):') || '').trim().slice(0, 60);
+    if (!name) return;
+    const cats = [...new Set(products.map((x) => x.category))];
+    const same = cats.find((c) => c.toLowerCase() === name.toLowerCase());
+    const kg = !/oil|grocer|papad|spice|sauce|drink|rice|egg/i.test(name);
+    const at = same ? products.map((x) => x.category).lastIndexOf(same) + 1 : products.length;
+    products.splice(at, 0, { category: same || name, name: '', note: '', price: 0, unit: kg ? 'kg' : 'pc', step: kg ? 0.5 : 1, min: kg ? 0.5 : 1, cutModes: [], cooking: false, stock: null, image: '', available: true });
+    markDirty(); renderProducts(); editProduct(at);
+    toast(same ? `“${same}” already exists. Add the item to it.` : `Add the first item of “${name}”, then Save.`);
   });
   $('#addProduct').addEventListener('click', () => {
     products.push({ category: products.at(-1)?.category || 'Other', name: '', note: '', price: 0, unit: 'kg', step: 0.5, min: 0.5, cutModes: [], cooking: false, stock: null, image: '', available: true });

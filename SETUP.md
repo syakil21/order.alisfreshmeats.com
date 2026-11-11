@@ -255,3 +255,16 @@ If Upstash ever warns that you are near the limit, add a card there (pay as you 
 and a short description (`public/icons/share.jpg`). WhatsApp keeps old previews for a while.
 
 **Tests.** `npm test` for the quick checks; `npm run test:e2e` for the browser tests (see `scripts/e2e/README.md`).
+
+## Selling more than meat (chicken, vegetables, cooking oil, papadom…)
+
+Menu → **+ New section**, type its name (e.g. Chicken, Vegetables, Cooking Oil & Groceries) and fill in its first
+item. A section exists as long as it has at least one item; rename or move it with the buttons on its title.
+Each section gets its own tab on the shop and its first word is the tag on the sticker (CHICKEN, VEGETABLES).
+
+For each item choose **Sold per**: kg, set, pc, pack, bottle, bunch, box, tray or bird.
+
+- kg items: "Customers add" 0.25, 0.5 or 1 kg at a time (0.25 suits vegetables).
+- counted items: "Weight of one (kg)", e.g. 5 for a 5 kg bottle of oil. Orders heavier than the limit in
+  Settings → Delivery are sent by car instead of motorcycle, so this keeps heavy grocery orders off a bike.
+- Leave all the cutting boxes unticked for items that are not cut.

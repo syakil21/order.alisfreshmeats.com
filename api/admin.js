@@ -15,7 +15,7 @@ const push = require('../lib/push');
 const activity = require('../lib/activity');
 const { insights, summarize, rangeOf, lalamoveCostSen } = require('../lib/insights');
 const daily = require('../lib/daily');
-const { normalizePhone, prettyPhone, shopOpen, mytParts, fmtTime, rm, fmtQty } = require('../lib/util');
+const { UNITS, normalizePhone, prettyPhone, shopOpen, mytParts, fmtTime, rm, fmtQty } = require('../lib/util');
 
 const num = (v, d = 0) => (isFinite(parseFloat(v)) ? parseFloat(v) : d);
 const str = (v, n = 200) => String(v ?? '').trim().slice(0, n);
@@ -441,15 +441,16 @@ const actions = {
     const current = Object.fromEntries((await store.getProducts()).map((p) => [p.id, p]));
     const seen = new Set();
     const list = b.products.map((p, i) => {
-      const unit = ['kg', 'set', 'pc'].includes(p.unit) ? p.unit : 'kg';
+      const unit = UNITS[p.unit] ? p.unit : 'kg';
       let id = p.id ? slug(p.id) : slug(p.name); while (seen.has(id)) id += '-2'; seen.add(id);
-      const step = num(p.step, unit === 'kg' ? 0.5 : 1) || (unit === 'kg' ? 0.5 : 1);
+      const step = unit === 'kg' ? ([0.25, 0.5, 1].includes(num(p.step)) ? num(p.step) : 0.5) : 1;
       if (!str(p.name)) throw httpError(400, `Product ${i + 1} needs a name.`);
       return {
         id, category: str(p.category, 60) || 'Other', name: str(p.name, 80), note: str(p.note, 120),
         price: Math.max(0, Math.round(num(p.price) * 100) / 100), unit, step, min: Math.max(step, num(p.min, step)),
         cutModes: (Array.isArray(p.cutModes) ? p.cutModes : []).filter((m) => store.CUT_MODES.includes(m)),
         cooking: !!p.cooking,
+        weightKg: unit === 'kg' ? 0 : Math.max(0, Math.min(50, Math.round(num(p.weightKg) * 100) / 100)), // weight of one (for choosing bike or car)
         image: current[id]?.image || '', available: p.available !== false, sort: i,
       };
     });

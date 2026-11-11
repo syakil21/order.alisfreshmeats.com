@@ -24,6 +24,7 @@
   let fulfilment = prefs.fulfilment === 'pickup' ? 'pickup' : 'delivery';
   let deliveryOption = 'regular';
   let pickupBranchId = prefs.pickupBranchId || ''; let pickupDay = ''; let pickupAt = '';
+  let when = 'now'; let deliverDay = ''; let deliverAt = ''; // delivery now, or an advance order for a later day and time
   let usePoints = false;
   let quote = null; let quoteSeq = 0; let quoteTimer = null; let paying = false; let quoting = false;
 
@@ -441,7 +442,33 @@
     else if (t.dataset.pslot) { pickupAt = t.dataset.pslot; renderSlots(); scheduleQuote(0); }
   });
   $('#speed').addEventListener('change', (e) => { if (e.target.name === 'speed') { deliveryOption = e.target.value; scheduleQuote(0); } });
+  // ---- delivery now or later (advance order) ----
+  const lower = (s) => s.replace(/^(Today|Tomorrow)/, (m) => m.toLowerCase());
+  function renderWhen() {
+    const slots = (fulfilment === 'delivery' && quote?.fulfilment === 'delivery' && quote.deliverySlots) || [];
+    const box = $('#whenBox');
+    box.hidden = !slots.length;
+    if (!slots.length) { when = 'now'; deliverAt = ''; return; }
+    const days = [...new Set(slots.map((x) => x.day))];
+    if (!days.includes(deliverDay)) deliverDay = days[0];
+    if (deliverAt && !slots.some((x) => x.at === deliverAt)) deliverAt = '';
+    $('#whenSeg').innerHTML = chip('data-when', 'now', when === 'now', quote.preorder ? 'When the shop opens' : 'As soon as possible') + chip('data-when', 'later', when === 'later', 'Choose a day and time');
+    $('#laterBox').hidden = when !== 'later';
+    $('#dDays').innerHTML = days.map((d) => chip('data-dday', d, d === deliverDay, d)).join('');
+    $('#dSlots').innerHTML = slots.filter((x) => x.day === deliverDay).map((x) => chip('data-dslot', x.at, x.at === deliverAt, x.time)).join('');
+    const msg = $('#whenMsg'); const sl = slots.find((x) => x.at === deliverAt);
+    if (when !== 'later') { msg.className = 'msg'; msg.textContent = ''; }
+    else if (!sl) { msg.className = 'msg'; msg.textContent = 'Choose the day and time. Our driver leaves the shop around then.'; }
+    else { msg.className = 'msg ok'; msg.textContent = `Driver leaves our shop around ${lower(sl.label)}`; }
+  }
+  $('#whenBox').addEventListener('click', (e) => {
+    const t = e.target.closest('button'); if (!t) return;
+    if (t.dataset.when) { when = t.dataset.when; if (when === 'now') deliverAt = ''; renderWhen(); updatePay(); scheduleQuote(0); }
+    else if (t.dataset.dday) { deliverDay = t.dataset.dday; renderWhen(); }
+    else if (t.dataset.dslot) { deliverAt = t.dataset.dslot; renderWhen(); scheduleQuote(0); }
+  });
   function renderSpeed() {
+    renderWhen();
     const box = $('#speed');
     const opts = fulfilment === 'delivery' && quote?.deliveryOptions || [];
     box.hidden = opts.length < 2;
@@ -489,7 +516,7 @@
         method: 'POST', headers: { 'Content-Type': 'application/json', ...auth() },
         body: JSON.stringify({
           items: cart.map(({ productId, qty, cut }) => ({ productId, qty, cut })), phone: $('#phone').value, couponCode,
-          fulfilment, deliveryOption, pickupBranchId, pickupAt, usePoints,
+          fulfilment, deliveryOption, pickupBranchId, pickupAt, usePoints, deliverAt: fulfilment === 'delivery' && when === 'later' ? deliverAt : '',
           location: fulfilment === 'delivery' && addr ? { lat: addr.lat, lng: addr.lng, address: addr.text } : null,
         }),
       });
@@ -497,6 +524,7 @@
       if (seq !== quoteSeq) return;
       if (!r.ok) throw new Error(q.error);
       quote = q;
+      if (q.deliverAtError) { deliverAt = ''; toast(q.deliverAtError); }
     } catch (e) { if (seq === quoteSeq) { quote = null; toast(e.message || 'Could not update prices'); } }
     if (seq !== quoteSeq) return;
     quoting = false;
@@ -535,7 +563,7 @@
     if (quote.fulfilment === 'pickup') delivery = `<tr><td>Self pickup <span class="muted">(${esc(quote.branch?.name || '')})</span></td><td>Free</td></tr>`;
     else if (quote.deliverySen != null) {
       const opt = (quote.deliveryOptions || []).find((o) => o.id === quote.deliveryOption);
-      delivery = `<tr><td>${opt && quote.deliveryOptions.length > 1 ? `${esc(opt.label)} delivery` : 'Delivery'} <span class="muted">(Lalamove${quote.distanceKm ? `, ${quote.distanceKm} km` : ''})</span>${quote.scheduledText ? `<div class="muted">We're closed now. Driver collects around ${esc(quote.scheduledText)}</div>` : ''}</td><td>${rm(quote.deliverySen)}</td></tr>`;
+      delivery = `<tr><td>${opt && quote.deliveryOptions.length > 1 ? `${esc(opt.label)} delivery` : 'Delivery'} <span class="muted">(Lalamove${quote.distanceKm ? `, ${quote.distanceKm} km` : ''})</span>${quote.scheduledText ? `<div class="muted">${quote.deliverAt ? '' : "We're closed now. "}Driver collects around ${esc(quote.scheduledText)}</div>` : ''}</td><td>${rm(quote.deliverySen)}</td></tr>`;
     } else if (quote.deliveryError) delivery = `<tr><td colspan="2" class="msg err">${esc(quote.deliveryError)}</td></tr>`;
     else delivery = `<tr><td>Delivery</td><td class="muted">Set your address</td></tr>`;
     $('#sum').innerHTML = `
@@ -555,6 +583,8 @@
     else if (!catalog.open && !catalog.preorder) why = 'Closed for orders now';
     else if (!quote || quoting) why = 'Updating prices…';
     else if (quote.errors?.length) why = quote.errors[0];
+    else if (fulfilment === 'delivery' && when === 'later' && !deliverAt) why = 'Choose a delivery time';
+    else if (fulfilment === 'delivery' && when === 'later' && quote.deliverAt !== deliverAt) why = 'Updating…';
     else if (fulfilment === 'pickup') { if (quote.fulfilment !== 'pickup') why = 'Updating…'; else if (!quote.pickupAt) why = quote.pickupSlots?.length ? 'Choose a pickup time' : 'No pickup times available'; }
     else if (!addr) why = 'Set your delivery address';
     else if (quote.deliverySen == null) why = quote.deliveryError ? (quote.outOfArea ? 'Outside delivery area' : 'Delivery not available') : 'Getting delivery price…';
@@ -586,7 +616,7 @@
         method: 'POST', headers: { 'Content-Type': 'application/json', ...auth() },
         body: JSON.stringify({
           items: cart.map(({ productId, qty, cut }) => ({ productId, qty, cut })),
-          customer, couponCode, fulfilment, deliveryOption, pickupBranchId, pickupAt, usePoints,
+          customer, couponCode, fulfilment, deliveryOption, pickupBranchId, pickupAt, usePoints, deliverAt: fulfilment === 'delivery' && when === 'later' ? deliverAt : '',
           address: fulfilment === 'pickup'
             ? { notes: $('#pickupNotes').value.trim() }
             : { text: addr.text, lat: addr.lat, lng: addr.lng, unit: $('#unit').value.trim(), notes: $('#notes').value.trim() },

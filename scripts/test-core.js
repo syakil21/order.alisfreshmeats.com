@@ -235,6 +235,23 @@ const { PDFDocument } = require('pdf-lib');
     console.log('✓ Ordering ahead while closed (next opening time)');
   }
 
+  // ---- advance delivery times ----
+  {
+    const { deliverySlots } = require('../lib/util');
+    const st = { ...DEFAULT_SETTINGS, prepMinutes: 30, hours: { open: '09:00', close: '18:00', closedDays: [0] }, advance: { enabled: true, days: 7 } };
+    const fri10 = Date.parse('2026-11-13T10:10:00+08:00');
+    const s = deliverySlots(st, fri10);
+    assert.strictEqual(s[0].label, 'Today 12:00pm', 'first choice is at least prep + 1 hour away, on the hour');
+    assert.strictEqual(s.filter((x) => x.day === 'Today').pop().time, '6:00pm');
+    assert.strictEqual(s.find((x) => x.day === 'Tomorrow').time, '10:00am', 'a day starts after opening + prep time');
+    const days = [...new Set(s.map((x) => x.day))];
+    assert.strictEqual(days.length, 7); assert.ok(!days.some((d) => /^Sun/.test(d)), 'closed days are skipped');
+    assert.deepStrictEqual(deliverySlots({ ...st, advance: { enabled: false, days: 7 } }, fri10), []);
+    const pk = require('../lib/util').pickupSlots({ ...st, pickup: { enabled: true, slotMinutes: 30, days: 2 } }, fri10);
+    assert.strictEqual(pk[0].label, 'Today 11:00am', 'pickup times are unchanged');
+    console.log('✓ Advance delivery times (hourly, up to 7 days, closed days skipped)');
+  }
+
   // ---- small order fee (uses the in-memory database) ----
   {
     process.env.ALLOW_MEMORY_DB = '1';

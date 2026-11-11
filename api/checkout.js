@@ -27,7 +27,7 @@ module.exports = handler(async (req, res) => {
   const { result: q, settings, phone, status } = await buildQuote({
     items: b.items, phone: c.phone, couponCode: b.couponCode, member,
     location: pickup ? null : { lat: a.lat, lng: a.lng, address: a.text },
-    fulfilment: b.fulfilment, deliveryOption: b.deliveryOption, pickupBranchId: b.pickupBranchId, pickupAt: b.pickupAt, usePoints: !!b.usePoints,
+    fulfilment: b.fulfilment, deliveryOption: b.deliveryOption, pickupBranchId: b.pickupBranchId, pickupAt: b.pickupAt, deliverAt: pickup ? '' : b.deliverAt, usePoints: !!b.usePoints,
   });
   if (!status.open && !status.preorder) return bad(res, status.message);
   if (!phone) return bad(res, 'Please enter a valid Malaysian phone number.');
@@ -37,13 +37,14 @@ module.exports = handler(async (req, res) => {
   if (pickup && q.fulfilment !== 'pickup') return bad(res, 'Self pickup is not available right now.');
   if (q.fulfilment === 'pickup' && q.pickupError) return bad(res, q.pickupError);
   if (q.fulfilment === 'delivery' && (q.deliveryError || q.deliverySen == null)) return bad(res, q.deliveryError || 'Could not get a delivery price.');
+  if (q.fulfilment === 'delivery' && q.deliverAtError) return bad(res, q.deliverAtError);
   if (b.deliveryOption && q.fulfilment === 'delivery' && b.deliveryOption !== q.deliveryOption) return bad(res, 'That delivery option is not available for this address. Please choose again.');
   if (b.usePoints && !q.points.used) return bad(res, 'Your points cannot be used on this order. Please refresh and try again.');
   if (q.totalSen < 100) return bad(res, 'The amount to pay must be at least RM1.00.');
 
   // Pressing Pay again (e.g. back from the bank page): reuse the same unpaid bill if nothing changed,
   // otherwise mark the earlier unpaid checkout(s) as replaced so they don't look like missing payments.
-  const sig = JSON.stringify([q.lines.map((l) => [l.productId, l.qty, l.cut || null]), q.fulfilment, q.deliveryOption, q.branch?.id, q.pickupAt || '', q.totalSen,
+  const sig = JSON.stringify([q.lines.map((l) => [l.productId, l.qty, l.cut || null]), q.fulfilment, q.deliveryOption, q.branch?.id, q.pickupAt || q.deliverAt || '', q.totalSen,
     pickup ? '' : [Number(parseFloat(a.lat).toFixed(5)), Number(parseFloat(a.lng).toFixed(5))]]);
   const earlier = (await store.listOrders(80)).filter((o) => o.customer?.phone === phone && o.payment?.status === 'pending' && !o.deletedAt && Date.now() - o.createdAt < 2 * 3600000);
   const same = earlier.find((o) => o.checkoutSig === sig && o.payment.billUrl);
@@ -82,10 +83,11 @@ module.exports = handler(async (req, res) => {
   };
   if (q.fulfilment === 'pickup') order.pickup = { branchId: q.branch.id, at: q.pickupAt };
   else order.deliveryOption = q.deliveryOption;
-  if (status.preorder) { order.preorder = true; if (q.scheduledFor) order.scheduledFor = q.scheduledFor; }
+  if (status.preorder || q.deliverAt) { order.preorder = true; if (q.scheduledFor) order.scheduledFor = q.scheduledFor; } // ordered for later
+  if (q.deliverAt) order.advance = true;
   if (Array.isArray(b.pushSubs)) order.pushSubs = b.pushSubs.filter((x) => /^[a-f0-9]{24}$/.test(x)).slice(0, 3);
   const how = q.fulfilment === 'pickup' ? `self pickup at ${q.branch.name}` : `${({ regular: 'standard', priority: 'priority', saver: 'saver' })[q.deliveryOption] || 'standard'} delivery`;
-  store.addLog(order, `Order placed${member ? ` by member ${member.name}` : ''} (${how}${order.preorder ? `, ordered ahead while closed${order.scheduledFor ? ` for ${fmtWhen(Date.parse(order.scheduledFor))}` : ''}` : ''}), waiting for payment`);
+  store.addLog(order, `Order placed${member ? ` by member ${member.name}` : ''} (${how}${order.preorder ? `, ${order.advance ? 'advance order' : 'ordered ahead while closed'}${order.scheduledFor ? ` for ${fmtWhen(Date.parse(order.scheduledFor))}` : ''}` : ''}), waiting for payment`);
 
   // Members: keep their email up to date and save a new address if they ticked "save"
   if (member) {

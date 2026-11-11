@@ -324,3 +324,5 @@ label.check { display: flex; align-items: center; gap: 8px; font-size: 14px; mar
 .item .left.out { color: #e0796f; }
 .item.soldout .thumb, .item.soldout .info .name, .item.soldout .info .price { opacity: .5; }
 .soldtag { display: inline-block; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); font-size: 13px; font-weight: 700; }
+.slotdays .opt { white-space: nowrap; }
+#laterBox { margin-top: 10px; }

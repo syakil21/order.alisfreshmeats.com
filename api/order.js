@@ -33,6 +33,7 @@ module.exports = handler(async (req, res) => {
     shop: pickup ? { name: branch.name, address: branch.address || '', lat: branch.lat, lng: branch.lng, phone: branch.phone || '' } : null,
     items: order.items.map(({ name, qty, unit, lineSen, cutText }) => ({ name, qty, unit, lineSen, cutText: cutText || '' })),
     subtotalSen: order.subtotalSen, discounts: order.discounts || [], smallOrderSen: order.smallOrderSen || 0, deliverySen: order.deliverySen, totalSen: order.totalSen,
+    advance: !!order.advance,
     preorder: !!order.preorder && Date.parse(order.scheduledFor || order.pickup?.at || '') > Date.now(),
     pointsUsed: order.pointsUsed || 0, pointsSen: order.pointsSen || 0, pointsEarned: order.pointsEarned || 0,
     paid: order.payment.status === 'paid',

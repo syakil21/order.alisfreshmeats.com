@@ -11,7 +11,7 @@ module.exports = handler(async (req, res) => {
   const member = await members.fromRequest(req);
   const { result } = await buildQuote({
     items: b.items, phone: b.phone, couponCode: b.couponCode, location: b.location, member,
-    fulfilment: b.fulfilment, deliveryOption: b.deliveryOption, pickupBranchId: b.pickupBranchId, pickupAt: b.pickupAt, usePoints: !!b.usePoints,
+    fulfilment: b.fulfilment, deliveryOption: b.deliveryOption, pickupBranchId: b.pickupBranchId, pickupAt: b.pickupAt, deliverAt: b.deliverAt, usePoints: !!b.usePoints,
   });
   send(res, 200, result);
 });

@@ -582,6 +582,7 @@ const actions = {
       minOrder: Math.max(0, num(s.minOrder)),
       smallOrder: { enabled: !!(s.smallOrder?.enabled ?? cur.smallOrder.enabled), belowRM: Math.max(0, Math.round(num(s.smallOrder?.belowRM, cur.smallOrder.belowRM) * 100) / 100), feeRM: Math.max(0, Math.min(50, Math.round(num(s.smallOrder?.feeRM, cur.smallOrder.feeRM) * 100) / 100)) },
       preorder: { enabled: !!(s.preorder?.enabled ?? cur.preorder.enabled) },
+      advance: { enabled: !!(s.advance?.enabled ?? cur.advance.enabled), days: Math.max(1, Math.min(7, Math.round(num(s.advance?.days, cur.advance.days)))) },
       dailySummary: { enabled: !!(s.dailySummary?.enabled ?? cur.dailySummary.enabled) },
       stackDiscounts: !!s.stackDiscounts,
       checkoutNote: str(s.checkoutNote, 300),

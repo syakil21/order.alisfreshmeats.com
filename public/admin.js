@@ -179,12 +179,14 @@
 
   // ---------- home: order board ----------
   let boardTab = 'preparing'; let allOrders = null; let deletedOrders = null;
-  const isLater = (o) => o.fulfilment === 'pickup' && o.board === 'preparing' && o.pickupAt && Date.parse(o.pickupAt) - Date.now() > 120 * 60000;
+  // pickups and scheduled deliveries more than 2 hours away wait in their own tab
+  const isLater = (o) => o.board === 'preparing' && o.pickupAt && Date.parse(o.pickupAt) - Date.now() > 120 * 60000;
+  const booked = (at) => at && Date.parse(at) - Date.now() > 75 * 60000; // Lalamove is booked for later (well beyond the normal prep time): no driver is expected yet
   const GROUPS = [
     ['preparing', 'Preparing', (o) => o.board === 'preparing' && !isLater(o)],
     ['ready', 'Ready / on the way', (o) => o.board === 'ready'],
     ['attention', 'Needs attention', (o) => o.paid && !o.cancelledAt && !!o.problem],
-    ['later', 'Later pickups', isLater],
+    ['later', 'For later', isLater],
     ['done', 'Done today', (o) => o.board === 'done'],
     ['unpaid', 'Checking out', (o) => o.board === 'unpaid'],
     ['all', 'All orders', () => true],
@@ -202,6 +204,7 @@
     if (o.cancelledAt) return 'Cancelled';
     if (o.fulfilment === 'pickup') return o.stage === 'collected' ? 'Collected' : o.readyAt ? `Ready since ${fmtTime(o.readyAt)}` : `Prepare for ${o.pickupAt ? whenText(Date.parse(o.pickupAt)) : 'pickup'}`;
     const ds = o.deliveryStatus;
+    if (ds === 'ASSIGNING_DRIVER' && booked(o.pickupAt)) return `Lalamove booked for <b>${esc(whenText(Date.parse(o.pickupAt)))}</b>${o.readyAt ? ' · packed' : ''}`;
     if (ds === 'ASSIGNING_DRIVER') return `Finding driver · ${mins(o.bookedAt)} min${o.priorityFeeRM ? ` · tip RM${o.priorityFeeRM}` : ''}${o.readyAt ? ' · packed' : ''}`;
     if (ds === 'ON_GOING') return `🛵 <b>${esc(o.driver || 'Driver')}</b>${o.driverPlate ? ` · <b>${esc(o.driverPlate)}</b>` : ''} coming to collect${o.readyAt ? ' · packed' : ''}`;
     if (ds === 'PICKED_UP') return `On the way with ${esc(o.driver || 'driver')}${o.driverPlate ? ` (${esc(o.driverPlate)})` : ''}`;
@@ -221,7 +224,7 @@
     } else {
       const ds = o.deliveryStatus;
       if (!o.readyAt && ['ASSIGNING_DRIVER', 'ON_GOING'].includes(ds)) a.push(b('order.ready', '✓ Packed', 'go'));
-      if (ds === 'ASSIGNING_DRIVER' && mins(o.bookedAt) >= 8) a.push(b('tip', '+ Add tip', 'pri'));
+      if (ds === 'ASSIGNING_DRIVER' && mins(o.bookedAt) >= 8 && !booked(o.pickupAt)) a.push(b('tip', '+ Add tip', 'pri'));
       if (o.driverPhone && ['ON_GOING', 'PICKED_UP'].includes(ds)) a.push(`<a class="btn sm" href="tel:${esc(o.driverPhone)}" data-stop>📞 Driver</a>`);
       if (ds === 'ON_GOING' && o.matchedAt && mins(o.matchedAt) >= 15) a.push(b('open', 'Change driver'));
       if (FAIL.includes(ds) || !ds) a.push(b('open', 'Rebook…', 'pri'));
@@ -311,7 +314,8 @@
     const costRM = (Number(d.feeRM) || 0) + (Number(d.priorityFeeRM) || 0);
     let deliveryTools = '';
     if (paid && !pickup && !o.cancelledAt) {
-      if (d.status === 'ASSIGNING_DRIVER') deliveryTools = `<div class="note info"><b>No driver yet${d.bookedAt ? ` (${mins(d.bookedAt)} min)` : ''}?</b> Add a tip instead of cancelling. The original price stays; a cancel + rebook gets a new, often higher, price.</div>
+      if (d.status === 'ASSIGNING_DRIVER' && booked(d.scheduleAt)) deliveryTools = `<div class="note info"><b>Booked for ${esc(whenText(Date.parse(d.scheduleAt)))}.</b> Lalamove finds a driver close to that time.</div>`;
+      else if (d.status === 'ASSIGNING_DRIVER') deliveryTools = `<div class="note info"><b>No driver yet${d.bookedAt ? ` (${mins(d.bookedAt)} min)` : ''}?</b> Add a tip instead of cancelling. The original price stays; a cancel + rebook gets a new, often higher, price.</div>
           <div class="row" style="margin-top:8px"><span class="muted">Tip RM</span><input class="inp" id="tipAmt" type="number" min="1" max="100" step="1" value="3" style="width:80px"><button class="btn pri sm" data-act="order.tip">Add tip</button>${d.priorityFeeRM ? `<span class="muted">Current tip RM${Number(d.priorityFeeRM).toFixed(2)}</span>` : ''}</div>`;
       else if (d.status === 'ON_GOING' && d.driver?.id) deliveryTools = `<div class="note info"><b>Driver late or not responding?</b> Ask Lalamove for another driver. Free, same price. Allowed 15 minutes after the driver accepted${d.driver.matchedAt ? ` (accepted ${mins(d.driver.matchedAt)} min ago)` : ''}, before pickup.</div>
           <div class="row" style="margin-top:8px"><select class="inp" id="drvReason"><option value="DRIVER_LATE">Driver is late</option><option value="DRIVER_UNRESPONSIVE">Driver not responding</option><option value="DRIVER_ASKED_CHANGE">Driver asked to change</option><option value="DRIVER_RUDE">Driver was rude</option></select><button class="btn pri sm" data-act="order.changeDriver">Change driver</button></div>`;

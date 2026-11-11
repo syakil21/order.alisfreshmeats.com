@@ -78,6 +78,28 @@ const HOME = { lat: 3.2080, lng: 101.6370, text: '12 Jalan Kepong Baru, 52100 Ku
   ok(lines.some((l) => l.startsWith(so.no + ',') && /,1\.25,/.test(l) && /,25\.25,25\.25,/.test(l)), 'export row shows the small order fee and the amount paid');
   ok(!ex.csv.includes(small.token), 'export has no private order links');
 
+  // ---------- advance order: delivery on a later day ----------
+  const loc = { lat: HOME.lat, lng: HOME.lng, address: HOME.text };
+  q = (await J('/api/quote', { items: [{ productId: 'boneless-meat', qty: 1 }], fulfilment: 'delivery', location: loc })).d;
+  const dDays = [...new Set((q.deliverySlots || []).map((x) => x.day))];
+  ok(dDays.length === 7 && !q.scheduledFor && q.deliveryOptions.length >= 2, `delivery quote offers later times on ${dDays.length} days (${dDays[1]} … ${dDays[6]})`);
+  const slot = q.deliverySlots.filter((x) => x.day === dDays[2])[1];
+  q = (await J('/api/quote', { items: [{ productId: 'boneless-meat', qty: 1 }], fulfilment: 'delivery', location: loc, deliverAt: slot.at })).d;
+  ok(q.deliverAt === slot.at && q.scheduledFor === slot.at && q.deliveryOptions.length === 1 && q.deliveryOptions[0].desc === `Driver collects around ${slot.label}`, `chosen time ${slot.label}: one delivery option, "${q.deliveryOptions[0].desc}"`);
+  const stockBefore = (await G('/api/catalog')).products.find((x) => x.id === 'head').stock;
+  const adv = await J('/api/checkout', { items: [{ productId: 'boneless-meat', qty: 1 }, { productId: 'head', qty: 1 }], fulfilment: 'delivery', deliverAt: slot.at, customer: { name: 'Plan Ahead', phone: '0121110006' }, address: HOME });
+  ok(adv.status === 200, 'advance order checks out');
+  const advPage = await pay(adv.d);
+  const o4 = (await A('order.get', { id: adv.d.orderId })).d.order;
+  ok(o4.advance && o4.scheduledFor === slot.at && o4.delivery.status === 'ASSIGNING_DRIVER' && o4.delivery.scheduleAt === slot.at, `paid: Lalamove booked for ${slot.label}`);
+  ok(advPage.preorder && advPage.advance && advPage.pickupAt === slot.at, 'order page shows the chosen time');
+  ok(stockBefore == null || (await G('/api/catalog')).products.find((x) => x.id === 'head').stock === stockBefore - 1, 'stock is taken when the customer pays');
+  ok((await G('/__mock/alerts')).some((x) => x.tag === `staff-${o4.no}` && x.body.includes(`Delivery for ${slot.label}`)), `staff alert: "Delivery for ${slot.label}"`);
+  const badTime = await J('/api/checkout', { items: [{ productId: 'boneless-meat', qty: 2 }], fulfilment: 'delivery', deliverAt: new Date(Date.now() - 3600000).toISOString(), customer: { name: 'Plan Ahead', phone: '0121110006' }, address: HOME });
+  ok(badTime.status === 400 && /no longer available/.test(badTime.d.error), `a time that has passed is refused: "${badTime.d.error}"`);
+  const h4 = (await A('home')).d.orders.find((x) => x.id === o4.id);
+  ok(h4.board === 'preparing' && h4.preorder && h4.pickupAt === slot.at && !h4.problem, 'dashboard has it as a later order with no problem flag');
+
   // ---------- browser: shop, fee, Bahasa Melayu ----------
   const browser = await chromium.launch({ args: ['--no-sandbox'] });
   const ctx = await browser.newContext({ viewport: { width: 420, height: 900 }, locale: 'en-MY' });
@@ -109,6 +131,27 @@ const HOME = { lat: 3.2080, lng: 101.6370, text: '12 Jalan Kepong Baru, 52100 Ku
   await p.click('#sheet button.x');
   await p.click('#langBtn'); await p.waitForSelector('.item');
   ok(/View cart/.test(await p.textContent('#cartbar')), 'switching back to English works');
+  // advance order on the checkout page (address remembered from an earlier visit)
+  const LEAF = path.dirname(require.resolve('leaflet/dist/leaflet.js'));
+  await ctx.unroute(/cdnjs\.cloudflare\.com|tile\.openstreetmap\.org|photon\.komoot\.io/);
+  await ctx.route(/cdnjs\.cloudflare\.com\/ajax\/libs\/leaflet/, (r) => { const css = r.request().url().endsWith('.css'); r.fulfill({ path: `${LEAF}/${css ? 'leaflet.css' : 'leaflet.js'}`, contentType: css ? 'text/css' : 'text/javascript' }); });
+  await ctx.route(/tile\.openstreetmap\.org/, (r) => r.fulfill({ path: path.join(__dirname, 'tile.png'), contentType: 'image/png' }));
+  await ctx.route(/photon\.komoot\.io/, (r) => r.fulfill({ body: '{"features":[]}', contentType: 'application/json' }));
+  await p.evaluate((a) => { localStorage.setItem('afm_details', JSON.stringify({ name: 'Plan Ahead', phone: '0121110006', address: a })); localStorage.setItem('afm_prefs', JSON.stringify({ fulfilment: 'delivery' })); }, { text: HOME.text, lat: HOME.lat, lng: HOME.lng });
+  await p.reload(); await p.waitForSelector('.item');
+  await p.click('.item[data-id="boneless-meat"] [data-open]'); await p.click('#itemAdd');
+  await p.click('#openCart'); await p.waitForSelector('#whenBox:not([hidden]) [data-when="later"]', { timeout: 20000 });
+  ok(/As soon as possible/.test(await p.textContent('#whenSeg')) && await p.isHidden('#laterBox'), 'checkout asks "When do you want it?" with "As soon as possible" chosen');
+  await p.click('[data-when="later"]');
+  ok((await p.textContent('#payBtn')).trim() === 'Choose a delivery time' && await p.isDisabled('#payBtn'), 'choosing later: Pay waits for a time');
+  await p.click(`[data-dday="${dDays[2]}"]`); await p.click(`[data-dslot="${slot.at}"]`);
+  await p.waitForFunction(() => /^Pay RM/.test(document.querySelector('#payBtn').textContent));
+  ok((await p.textContent('#whenMsg')).includes(`Driver leaves our shop around ${slot.label}`) && (await p.textContent('#sum')).includes(`Driver collects around ${slot.label}`) && await p.isHidden('#speed'), `day and time picked: "${(await p.textContent('#whenMsg')).trim()}"`);
+  await p.screenshot({ path: `${OUT}/24-advance-order.png` });
+  await p.click('[data-when="now"]');
+  await p.waitForFunction(() => !document.querySelector('#speed').hidden);
+  ok(!(await p.textContent('#sum')).includes('Driver collects around'), 'back to "As soon as possible" restores the normal options');
+  await p.click('#sheet button.x');
   // order page shows the fee
   const op = await ctx.newPage();
   await op.goto(`${B}/order.html?id=${small.orderId}&t=${small.token}`); await op.waitForSelector('.status-card');
@@ -121,6 +164,9 @@ const HOME = { lat: 3.2080, lng: 101.6370, text: '12 Jalan Kepong Baru, 52100 Ku
   await a.goto(B + '/admin.html'); await a.fill('#lname', 'Syakil'); await a.fill('#pass', '1234'); await a.click('#loginForm button');
   await a.waitForSelector('#storeTitle'); await a.waitForSelector('.oc');
   const bar = await a.textContent('#attnBar');
+  await a.click('#boardTabs [data-board="later"]');
+  ok(/For later/.test(await a.textContent('#boardTabs')) && (await a.textContent('#board')).includes(o4.no) && /Lalamove booked for/.test(await a.textContent('#board')), 'dashboard "For later" tab lists the advance order: "Lalamove booked for …"');
+  await a.screenshot({ path: `${OUT}/25-for-later.png` });
   ok(/2 orders need attention/.test(bar) && bar.includes(o1.no) && bar.includes(o2.no), 'red bar on Home: "2 orders need attention" with both order numbers');
   await a.screenshot({ path: `${OUT}/22-attention-bar.png` });
   await a.click('#attnBar');
@@ -167,7 +213,10 @@ const HOME = { lat: 3.2080, lng: 101.6370, text: '12 Jalan Kepong Baru, 52100 Ku
   ok(slots.length > 0 && slots[0].day === 'Tomorrow', 'self pickup while closed offers tomorrow\'s times');
   await p.goto(B + '/'); await p.waitForSelector('.item');
   ok(/Closed now · order ahead/.test(await p.textContent('#openChip')) && /Pay now and we prepare your order as soon as we open/.test(await p.textContent('#notice')), 'shop page: "Closed now · order ahead" with an explanation');
-  await p.click('#openCart'); await p.waitForSelector('[data-pslot]'); await p.click('[data-pslot]');
+  await p.click('#openCart');
+  await p.waitForFunction(() => /Driver collects around/.test(document.querySelector('#sum').textContent), null, { timeout: 20000 });
+  ok(/We're closed now\. Driver collects around Tomorrow 12:30am/.test(await p.textContent('#sum')), 'closed: checkout says the driver collects when the shop opens');
+  await p.click('#fulfilSeg [data-ful="pickup"]'); await p.waitForSelector('[data-pslot]'); await p.click('[data-pslot]');
   await p.waitForFunction(() => /^Pay RM/.test(document.querySelector('#payBtn').textContent));
   ok(await p.isEnabled('#payBtn'), 'Pay button works while closed');
   await p.screenshot({ path: `${OUT}/23-closed-order-ahead.png` });

@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Oswald:wght@500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/styles.css?v=21">
+  <link rel="stylesheet" href="/styles.css?v=22">
 </head>
 <body>
   <header class="top">
@@ -24,8 +24,8 @@
     </div>
   </header>
   <main class="wrap" id="root"><div class="spinner" aria-label="Loading"></div></main>
-  <script src="/i18n.js?v=21"></script>
-  <script src="/app.js?v=21"></script>
+  <script src="/i18n.js?v=22"></script>
+  <script src="/app.js?v=22"></script>
   <script>
   (() => {
     const $ = (s) => document.querySelector(s);
@@ -87,7 +87,7 @@
       } else {
         head = `<h2>${o.stage === 'delivered' ? 'Delivered. Enjoy!' : 'Thank you, ' + esc(o.name.split(' ')[0]) + '!'}</h2><p class="sub">Order ${esc(o.no)} · paid ${rm(o.totalSen)}${o.deliveryOption === 'priority' ? ' · priority delivery' : o.deliveryOption === 'saver' ? ' · pooling delivery' : ''}</p>`;
         body = `<ol class="steps">
-          ${step('preparing', 'Payment received', o.preorder ? `We prepare your order when our ${esc(o.branchName)} shop opens` : `We're cutting and packing your order at ${esc(o.branchName)}`)}
+          ${step('preparing', 'Payment received', o.preorder && o.advance ? `We prepare your order fresh for ${dayTime(o.pickupAt)} at ${esc(o.branchName)}` : o.preorder ? `We prepare your order when our ${esc(o.branchName)} shop opens` : `We're cutting and packing your order at ${esc(o.branchName)}`)}
           ${step('finding_driver', 'Finding a Lalamove driver', o.pickupAt ? `Driver collects around ${o.preorder ? dayTime(o.pickupAt) : time(o.pickupAt)}` : '')}
           ${step('driver_assigned', 'Driver on the way to our shop', o.driver ? `${esc(o.driver.name)}${o.driver.plate ? ' · ' + esc(o.driver.plate) : ''}` : '')}
           ${step('on_the_way', 'Out for delivery', '')}

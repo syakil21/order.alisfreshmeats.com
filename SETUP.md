@@ -268,3 +268,16 @@ For each item choose **Sold per**: kg, set, pc, pack, bottle, bunch, box, tray o
 - counted items: "Weight of one (kg)", e.g. 5 for a 5 kg bottle of oil. Orders heavier than the limit in
   Settings → Delivery are sent by car instead of motorcycle, so this keeps heavy grocery orders off a bike.
 - Leave all the cutting boxes unticked for items that are not cut.
+
+## Advance orders (delivery on a later day)
+
+At checkout, under the address, the customer sees "When do you want it?": **As soon as possible** or **Choose a
+day and time** (hourly times inside the opening hours, up to 7 days ahead, closed days skipped). They pay now.
+
+- Lalamove is booked at payment for the chosen time, so the delivery fee is the normal Regular price.
+- Stock is taken at payment, so limited items are held for that customer.
+- The sticker prints at payment with the date on it. Keep it with the order list, or reprint on the day.
+- On the dashboard the order waits under **For later** (with later pickups) until 2 hours before, then moves to
+  Preparing. The card says "Lalamove booked for Fri 13 Nov 10:00am".
+- Settings → Ordering hours: untick "Advance delivery orders" to stop, or change the days ahead (1 to 7).
+- Self pickup has its own "Days ahead" in Settings → Self pickup.

@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Oswald:wght@500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/styles.css?v=24">
+  <link rel="stylesheet" href="/styles.css?v=25">
 </head>
 <body>
   <header class="top">
@@ -24,8 +24,8 @@
     </div>
   </header>
   <main class="wrap" id="root"><div class="spinner" aria-label="Loading"></div></main>
-  <script src="/i18n.js?v=24"></script>
-  <script src="/app.js?v=24"></script>
+  <script src="/i18n.js?v=25"></script>
+  <script src="/app.js?v=25"></script>
   <script>
   (() => {
     const $ = (s) => document.querySelector(s);
@@ -39,7 +39,7 @@
     const id = p.get('id'), t = p.get('t'), unpaidReturn = p.get('unpaid') === '1';
     const ORDER = ['awaiting_payment', 'preparing', 'finding_driver', 'driver_assigned', 'on_the_way', 'delivered'];
     const PICKUP = ['awaiting_payment', 'preparing', 'ready', 'collected'];
-    const FINAL = ['delivered', 'collected', 'cancelled'];
+    const FINAL = ['delivered', 'collected', 'cancelled', 'expired'];
     let timer;
 
     async function load() {
@@ -70,9 +70,14 @@
         head = `<h2>Replaced by your newer order</h2><p class="sub">Order ${esc(o.no)} was not paid. You checked out again as ${esc(o.replacedBy.no)}.</p>`;
         body = `<a class="bigbtn" href="${esc(o.replacedBy.link)}">Go to order ${esc(o.replacedBy.no)}</a>`;
       } else if (!o.paid) {
-        head = `<h2>${unpaidReturn ? 'Payment not completed' : 'Waiting for payment'}</h2><p class="sub">Order ${esc(o.no)} is saved. Complete payment to confirm it.</p>`;
+        if (o.expired) {
+          head = `<h2>Not paid: order cancelled</h2><p class="sub">We did not receive payment for ${esc(o.no)}, so it was cancelled. Nothing was charged and nothing will be prepared.</p>`;
+          body = `<a class="bigbtn" href="/#cart">Order again</a>`;
+        } else {
+        head = `<h2>${unpaidReturn ? 'Payment not completed' : 'Not confirmed yet'}</h2><p class="sub"><b>We have not received payment for ${esc(o.no)}.</b> We only prepare your order after you pay.${o.payBy ? ` Pay before ${time(o.payBy)} or it is cancelled.` : ''}</p>`;
         if (o.payUrl) body = `<a class="bigbtn" href="${esc(o.payUrl)}">Complete payment · ${rm(o.totalSen)}</a>`;
         body += `<a class="bigbtn alt" href="/#cart">Change my order</a>`;
+        }
       } else if (o.stage === 'cancelled') {
         head = `<h2>Order cancelled</h2><p class="sub">Order ${esc(o.no)}. Please WhatsApp us if you have any questions about your refund.</p>`;
       } else if (pickup) {

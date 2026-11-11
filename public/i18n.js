@@ -73,6 +73,8 @@
     'Location is not available on this device.': 'Lokasi tidak tersedia pada peranti ini.',
     'Could not get your location.': 'Lokasi anda tidak dapat diperoleh.', 'Please allow location access, or search instead.': 'Sila benarkan akses lokasi, atau buat carian.',
     // ---- order page ----
+    'Not confirmed yet': 'Belum disahkan', 'Not paid: order cancelled': 'Tidak dibayar: pesanan dibatalkan', 'We only prepare your order after you pay.': 'Kami hanya menyediakan pesanan selepas anda membayar.',
+    'Nothing was charged and nothing will be prepared.': 'Tiada caj dikenakan dan tiada apa yang akan disediakan.',
     'Waiting for payment': 'Menunggu pembayaran', 'Payment not completed': 'Pembayaran belum selesai', 'Complete payment to confirm it.': 'Selesaikan pembayaran untuk mengesahkannya.',
     'Change my order': 'Ubah pesanan saya', 'Order cancelled': 'Pesanan dibatalkan', 'Please WhatsApp us if you have any questions about your refund.': 'Sila WhatsApp kami jika ada soalan tentang bayaran balik anda.',
     'Delivered.': 'Telah dihantar.', 'Collected.': 'Telah diambil.', 'Enjoy!': 'Selamat menjamu selera!', 'Ready for collection': 'Sedia untuk diambil',
@@ -145,6 +147,8 @@
     [/^From our (.+) shop( · .+)?$/, (m, a, b) => `Dari kedai ${a} kami${b || ''}`],
     [/^\(about (\d+) km from our (.+) shop\)$/, '(kira-kira $1 km dari kedai $2 kami)'],
     // order page
+    [/^We have not received payment for (\S+)\.$/, 'Kami belum menerima bayaran untuk $1.'], [/^Pay before (.+) or it is cancelled\.$/, 'Bayar sebelum $1 atau pesanan dibatalkan.'],
+    [/^We did not receive payment for (\S+), so it was cancelled\.$/, 'Kami tidak menerima bayaran untuk $1, jadi pesanan dibatalkan.'],
     [/^Order (\S+) is saved\.$/, 'Pesanan $1 disimpan.'], [/^Order (\S+) was not paid\.$/, 'Pesanan $1 tidak dibayar.'], [/^You checked out again as (\S+)\.$/, 'Anda membuat pesanan semula sebagai $1.'],
     [/^Go to order (\S+)$/, 'Pergi ke pesanan $1'], [/^Order (\S+)\.$/, 'Pesanan $1.'],
     [/^Complete payment · (.+)$/, 'Selesaikan pembayaran · $1'],

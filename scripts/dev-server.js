@@ -107,6 +107,7 @@ global.fetch = async (url, opts = {}) => {
       return J(200, bill);
     }
     const m = u.pathname.match(/^\/api\/v3\/bills\/(\w+)$/);
+    if (m && mock.bills.has(m[1]) && method === 'DELETE') { if (mock.bills.get(m[1]).paid) return J(422, { error: { message: 'Bill already paid' } }); mock.bills.delete(m[1]); return J(200, {}); }
     if (m && mock.bills.has(m[1])) return J(200, mock.bills.get(m[1]));
     return J(404, { error: { message: 'not found' } });
   }
@@ -173,6 +174,8 @@ const server = http.createServer(async (req, res) => {
     if ((m = u.pathname.match(/^\/__mock\/lalamove\/advance\/(\d+)$/))) return await mockAdvance(req, res, m[1]);
     if (u.pathname === '/__mock/calls') { res.setHeader('Content-Type', 'application/json'); return res.end(JSON.stringify({ calls: mock.calls, llm: [...mock.llm.values()].map((o) => ({ orderId: o.orderId, status: o.status, remarks: o.remarks, metadata: o.metadata, tier: o.tier, priorityFee: o.priorityFee || '', changedDriver: o.changedDriver || '', driverId: o.driverId })) })); }
     // demo: a booking Lalamove doesn't know (like one made with sandbox keys before going live)
+    if ((m = u.pathname.match(/^\/__mock\/age\/([\w-]+)\/(\d+)$/))) { const o = await store.getOrder(m[1]); o.createdAt -= Number(m[2]) * 60000; await store.saveOrder(o); res.setHeader('Content-Type', 'application/json'); return res.end('{"ok":true}'); }
+    if (u.pathname === '/__mock/sweep') { res.setHeader('Content-Type', 'application/json'); return res.end(JSON.stringify({ due: await require('../lib/fulfil').expireUnpaid(`http://localhost:${PORT}`) })); }
     if (u.pathname === '/__mock/alerts') { res.setHeader('Content-Type', 'application/json'); return res.end(JSON.stringify(staffAlerts)); }
     if (u.pathname === '/__mock/daily') { const d = require('../lib/daily'); d._reset(); res.setHeader('Content-Type', 'application/json'); return res.end(JSON.stringify(await d.tick())); }
     if ((m = u.pathname.match(/^\/__mock\/down\/(lalamove|print)\/(on|off)$/))) { mock.down[m[1]] = m[2] === 'on'; res.setHeader('Content-Type', 'application/json'); return res.end(JSON.stringify(mock.down)); }

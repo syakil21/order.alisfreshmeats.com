@@ -78,6 +78,29 @@ const HOME = { lat: 3.2080, lng: 101.6370, text: '12 Jalan Kepong Baru, 52100 Ku
   ok(lines.some((l) => l.startsWith(so.no + ',') && /,1\.25,/.test(l) && /,25\.25,25\.25,/.test(l)), 'export row shows the small order fee and the amount paid');
   ok(!ex.csv.includes(small.token), 'export has no private order links');
 
+  // ---------- checkouts that are never paid ----------
+  const np = await pickupOrder([{ productId: 'boneless-meat', qty: 1 }], { name: 'Never Pays', phone: '0121110007' });
+  let npPage = await G(`/api/order?id=${np.orderId}&t=${np.token}`);
+  ok(!npPage.paid && !npPage.expired && npPage.payUrl && npPage.payBy > Date.now() + 25 * 60000, 'unpaid checkout: customer page says not confirmed, with 30 minutes to pay');
+  let npCard = (await A('home')).d.orders.find((x) => x.id === np.orderId);
+  ok(npCard.board === 'unpaid' && !npCard.paid && (await G('/__mock/alerts')).every((x) => !x.tag.includes(npCard.no)), 'staff see it only under "Not paid": no alert, no sticker, no booking');
+  await fetch(`${B}/__mock/age/${np.orderId}/31`);
+  npPage = await G(`/api/order?id=${np.orderId}&t=${np.token}`);
+  ok(npPage.expired === true && npPage.payUrl === '' && npPage.stage === 'expired', '31 minutes later: cancelled automatically, payment link removed');
+  ok((await fetch(`${B}/__mock/billplz/${billOf(np)}/paysilent`)).status === 404, 'its Billplz bill is closed and can no longer be paid');
+  npCard = (await A('home')).d.orders.find((x) => x.id === np.orderId);
+  ok(npCard.paymentStatus === 'expired' && npCard.stageText === 'Not paid: cancelled automatically', `dashboard card: "${npCard.stageText}"`);
+  // paid at the bank but the notice never reached us: the last check finds the payment instead of cancelling
+  const late = await pickupOrder([{ productId: 'boneless-meat', qty: 2 }], { name: 'Paid Late Notice', phone: '0121110008' });
+  await fetch(`${B}/__mock/billplz/${billOf(late)}/paysilent`); await fetch(`${B}/__mock/age/${late.orderId}/45`);
+  const sw = await G('/__mock/sweep');
+  const lateO = (await A('order.get', { id: late.orderId })).d.order;
+  ok(sw.due >= 1 && lateO.payment.status === 'paid' && lateO.fulfilledAt, 'a checkout that WAS paid is never cancelled: the sweep confirms it and prints the sticker');
+  // a second unpaid one is cancelled by the timer sweep without anyone opening a page
+  const np2 = await pickupOrder([{ productId: 'boneless-meat', qty: 3 }], { name: 'Never Pays Too', phone: '0121110009' });
+  await fetch(`${B}/__mock/age/${np2.orderId}/40`); await G('/__mock/sweep');
+  ok((await A('order.get', { id: np2.orderId })).d.order.payment.status === 'expired', 'the server timer cancels unpaid checkouts on its own');
+
   // ---------- advance order: delivery on a later day ----------
   const loc = { lat: HOME.lat, lng: HOME.lng, address: HOME.text };
   q = (await J('/api/quote', { items: [{ productId: 'boneless-meat', qty: 1 }], fulfilment: 'delivery', location: loc })).d;

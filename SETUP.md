@@ -281,3 +281,17 @@ day and time** (hourly times inside the opening hours, up to 7 days ahead, close
   Preparing. The card says "Lalamove booked for Fri 13 Nov 10:00am".
 - Settings → Ordering hours: untick "Advance delivery orders" to stop, or change the days ahead (1 to 7).
 - Self pickup has its own "Days ahead" in Settings → Self pickup.
+
+## Checkouts that are not paid
+
+A customer who fills the cart and opens the payment page, but does not pay, has **not** placed an order.
+
+- Nothing is printed, booked or alerted. The checkout only appears under Home → **Not paid**, with a red
+  "NOT PAID · not an order" tag. Paid orders are the ones under Preparing, with a sticker.
+- The customer's page says "Not confirmed yet. We have not received payment" and the time to pay by.
+- After the time to pay (Settings → Ordering hours → "Time to pay", 30 minutes) the checkout is cancelled
+  automatically and its Billplz bill is closed, so it cannot be paid days later. Before cancelling, the system
+  asks Billplz one last time; if the money did arrive, the order is confirmed instead.
+- Open a not-paid checkout → "Remind to pay on WhatsApp" sends the customer their payment link.
+- If someone says they ordered: ask for the order number and the Billplz receipt. Search the number on Home.
+  Paid shows "Paid" with the time; not paid shows the red tag.

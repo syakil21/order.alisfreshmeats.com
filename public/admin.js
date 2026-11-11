@@ -188,7 +188,7 @@
     ['attention', 'Needs attention', (o) => o.paid && !o.cancelledAt && !!o.problem],
     ['later', 'For later', isLater],
     ['done', 'Done today', (o) => o.board === 'done'],
-    ['unpaid', 'Checking out', (o) => o.board === 'unpaid'],
+    ['unpaid', 'Not paid', (o) => o.board === 'unpaid'],
     ['all', 'All orders', () => true],
     ['deleted', 'Deleted', () => true],
   ];
@@ -200,7 +200,7 @@
     return '<span class="tag t-pay">🛵 Delivery</span>';
   }
   function statusLine(o) {
-    if (!o.paid) return o.paymentStatus === 'failed' ? 'Payment failed' : o.paymentStatus === 'replaced' ? esc(o.stageText) : `Checking out (${ago(o.createdAt)})`;
+    if (!o.paid) return o.paymentStatus === 'failed' ? 'Payment failed' : o.paymentStatus !== 'pending' ? esc(o.stageText) : `Has not paid yet (started ${ago(o.createdAt)})`;
     if (o.cancelledAt) return 'Cancelled';
     if (o.fulfilment === 'pickup') return o.stage === 'collected' ? 'Collected' : o.readyAt ? `Ready since ${fmtTime(o.readyAt)}` : `Prepare for ${o.pickupAt ? whenText(Date.parse(o.pickupAt)) : 'pickup'}`;
     const ds = o.deliveryStatus;
@@ -233,11 +233,12 @@
   }
   function orderCard(o) {
     return `<div class="oc ${o.problem && o.paid && !o.cancelledAt ? 'prob' : ''} ${freshIds.has(o.id) ? 'fresh' : ''}" data-oid="${esc(o.id)}">
-      <div class="top"><span class="no">${esc(o.no)}</span>${speedTag(o)}<span class="ago">${ago(o.createdAt)}</span></div>
+      <div class="top"><span class="no">${esc(o.no)}</span>${o.paid ? speedTag(o) : '<span class="tag t-bad">NOT PAID · not an order</span>'}<span class="ago">${ago(o.createdAt)}</span></div>
       <div class="who"><b>${esc(o.name)}</b> · ${esc(prettyPhone(o.phone))} <span class="muted">· ${esc(o.branchName)}</span></div>
       <div class="items">${esc(o.items || `${o.itemCount} items`)}</div>
       <div class="meta"><span class="sl">${statusLine(o)}</span><span class="tot">${rm(o.totalSen)}</span></div>
       ${o.problem && o.paid && !o.cancelledAt ? `<div class="warn">⚠ ${esc(o.problem)}</div>` : ''}
+      ${!o.paid && !o.deletedAt ? '<div class="muted" style="font-size:13px;margin-top:6px">Do not prepare. Only paid orders appear under Preparing, with a sticker.</div>' : ''}
       ${o.deletedAt ? `<div class="warn">Deleted by ${esc(o.deletedBy || '')} ${fmtDT(o.deletedAt)}${o.deleteReason ? `: ${esc(o.deleteReason)}` : ''}</div>` : `<div class="acts">${cardActions(o)}</div>`}
     </div>`;
   }
@@ -324,6 +325,7 @@
     }
     $('#drawerBody').innerHTML = `
       <div class="row"><h2 class="grow" style="margin:0;font:600 22px Oswald,sans-serif">${esc(o.no)}</h2><button class="btn sm" data-close>Close</button></div>
+      ${!paid ? `<div class="note" style="margin-top:10px"><b>Not paid. This is not an order.</b> The customer filled the cart and opened the payment page but did not finish paying. Nothing was booked or printed. ${o.payment.status === 'pending' ? 'It is cancelled automatically if it stays unpaid.' : ''} If someone says they ordered, ask for the Billplz receipt: a paid order always shows under Preparing.</div>` : ''}
       <div class="row" style="margin:8px 0 12px">${speedTag(s)} <span class="tag ${o.cancelledAt || o.deletedAt ? 't-bad' : paid ? 't-done' : 't-pay'}">${esc(o.deletedAt ? 'Deleted' : o.cancelledAt ? 'Cancelled' : paid ? s.stageText : 'Not paid')}</span>${s.problem && paid && !o.cancelledAt && !o.deletedAt ? `<span class="warn">⚠ ${esc(s.problem)}</span>` : ''}</div>
       ${o.deletedAt ? `<div class="note" style="margin-bottom:14px"><b>Deleted by ${esc(o.deletedBy || '')}</b>, ${fmtDT(o.deletedAt)}${o.deleteReason ? `: ${esc(o.deleteReason)}` : ''}. It no longer shows in orders or sales, but the record stays here and in the Activity log.</div>` : ''}
       <div class="card ${o.deletedAt ? 'hidden' : ''}"><div class="row">
@@ -332,7 +334,8 @@
         ${paid && !o.cancelledAt && pickup && o.prep?.readyAt && !o.prep?.collectedAt ? '<button class="btn go sm" data-act="order.collected">✓ Collected</button>' : ''}
         ${paid && !o.cancelledAt && !pickup && !o.prep?.readyAt && d.lalamoveOrderId && !failed ? '<button class="btn go sm" data-act="order.ready">✓ Packed</button>' : ''}
         ${o.prep?.readyAt ? '<button class="btn sm" data-act="order.undoReady">Undo ready</button>' : ''}
-        ${!paid && o.payment.billId ? '<button class="btn sm" data-act="order.checkPayment">Check payment with Billplz</button>' : ''}
+        ${!paid && o.payment.billId && o.payment.status !== 'expired' ? '<button class="btn sm" data-act="order.checkPayment">Check payment with Billplz</button>' : ''}
+        ${o.payment.status === 'pending' ? `<a class="btn sm" target="_blank" rel="noopener" href="https://wa.me/${esc(o.customer.phone.replace('+', ''))}?text=${encodeURIComponent(`Hi ${o.customer.name}, this is Ali's Fresh Meats. Your order ${o.no} (${rm(o.totalSen)}) is not paid yet, so it is not confirmed. To confirm it, please pay here: ${location.origin}/order.html?id=${o.id}&t=${o.token}`)}">Remind to pay on WhatsApp</a>` : ''}
         ${d.lalamoveOrderId ? '<button class="btn sm" data-act="order.refresh">Refresh delivery</button>' : ''}
       </div>${deliveryTools ? `<div style="margin-top:12px">${deliveryTools}</div>` : ''}</div>
       <div class="card"><dl class="kv">

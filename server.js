@@ -47,3 +47,8 @@ server.listen(PORT, () => console.log(`Ali's Fresh Meats running on port ${PORT}
 const daily = require('./lib/daily');
 setInterval(() => daily.tick().catch(() => {}), 5 * 60000).unref();
 setTimeout(() => daily.tick().catch(() => {}), 20000).unref();
+
+// Checkouts that were never paid are cancelled automatically after the time to pay (Settings), every 10 minutes
+const { expireUnpaid } = require('./lib/fulfil');
+const SITE = (process.env.SITE_URL || '').replace(/\/$/, '');
+setInterval(() => expireUnpaid(SITE).catch((e) => console.warn('expiry sweep failed', e.message)), 10 * 60000).unref();

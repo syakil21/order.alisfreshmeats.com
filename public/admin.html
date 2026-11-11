@@ -399,6 +399,7 @@
             <div class="grid">
               <label class="f">Open from<input class="inp" type="time" name="hours.open"></label>
               <label class="f">Last order at<input class="inp" type="time" name="hours.close"></label>
+              <label class="f">Time to pay (minutes)<input class="inp" type="number" min="10" max="720" name="payMinutes"><small>A checkout that is still not paid after this is cancelled automatically and its payment link is closed. Nothing is prepared, booked or printed before payment.</small></label>
               <label class="f">Minimum order (RM)<input class="inp" type="number" step="0.01" min="0" name="minOrder"></label>
               <label class="f">Small order fee (RM)<input class="inp" type="number" step="0.05" min="0" max="50" name="smallOrder.feeRM"><small>Added to orders below the amount on the right. 0 = no fee.</small></label>
               <label class="f">Charged when items are below (RM)<input class="inp" type="number" step="1" min="0" name="smallOrder.belowRM"><small>Counts the meat only, before discounts and delivery.</small></label>
@@ -486,6 +487,6 @@
     <div class="drawer" id="drawer"><div class="scrim" data-close></div><div class="panel" id="drawerBody"></div></div>
   </div>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script src="/admin.js?v=24"></script>
+  <script src="/admin.js?v=25"></script>
 </body>
 </html>

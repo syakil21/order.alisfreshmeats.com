@@ -7,7 +7,7 @@ const lalamove = require('../lib/lalamove');
 const printnode = require('../lib/printnode');
 const { buildLabel } = require('../lib/label');
 const { body, send, ip, siteUrl, rid, safeEqual, handler, httpError } = require('../lib/http');
-const { syncPayment, fulfil, printLabel, bookDelivery, refreshDelivery, labelOptions, withCategories, addTip, reverseOrder } = require('../lib/fulfil');
+const { expireIfUnpaid, syncPayment, fulfil, printLabel, bookDelivery, refreshDelivery, labelOptions, withCategories, addTip, reverseOrder } = require('../lib/fulfil');
 const staff = require('../lib/staff');
 const { stage } = require('../lib/stage');
 const members = require('../lib/members');
@@ -193,7 +193,7 @@ const actions = {
     for (const o of stale) { try { orders[orders.indexOf(o)] = await refreshDelivery(o); } catch (e) { console.warn('board refresh failed', o.no, e.message); } }
     // unpaid checkouts from the last 6 hours: ask Billplz in case its payment notice never arrived
     const unpaid = orders.filter((o) => o.payment.status === 'pending' && o.payment.billId && Date.now() - o.createdAt < 6 * 3600000).slice(0, 5);
-    for (const o of unpaid) { try { orders[orders.indexOf(o)] = await syncPayment(o, siteUrl(req)); } catch (e) { console.warn('payment check failed', o.no, e.message); } }
+    for (const o of unpaid) { try { orders[orders.indexOf(o)] = await expireIfUnpaid(await syncPayment(o, siteUrl(req)), siteUrl(req), settings); } catch (e) { console.warn('payment check failed', o.no, e.message); } }
     const now = Date.now(); const st = shopOpen(settings, now); const todayDate = mytParts(now).date;
     const mine = orders.filter((o) => staff.sees(me, o));
     const todays = mine.filter((o) => mytParts(o.createdAt).date === todayDate);
@@ -574,6 +574,7 @@ const actions = {
       acceptingOrders: s.acceptingOrders !== false,
       hours: { open: hhmm(s.hours?.open, cur.hours.open), close: hhmm(s.hours?.close, cur.hours.close), closedDays: (s.hours?.closedDays || []).map(Number).filter((d) => d >= 0 && d <= 6) },
       prepMinutes: Math.max(0, Math.min(600, Math.round(num(s.prepMinutes, cur.prepMinutes)))),
+      payMinutes: Math.max(10, Math.min(720, Math.round(num(s.payMinutes, cur.payMinutes)))),
       serviceType: str(s.serviceType, 30).toUpperCase() || 'MOTORCYCLE',
       heavyOrderKg: Math.max(0, num(s.heavyOrderKg, cur.heavyOrderKg)),
       heavyServiceType: str(s.heavyServiceType, 30).toUpperCase() || 'CAR',

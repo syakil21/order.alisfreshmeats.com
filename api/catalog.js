@@ -33,7 +33,8 @@ module.exports = handler(async (req, res) => {
     products: products
       .filter((p) => p.available)
       .sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0))
-      .map(({ id, category, name, note, price, unit, step, min, cuts, cutModes, cooking, stock, image }) => ({
+      .map(({ id, category, name, note, price, unit, step, min, cuts, cutModes, cooking, options, stock, image }) => ({
+        options: options || [],
         id, category, name, note, price, unit, step, min, cuts: !!cuts, cutModes: cutModes || [], cooking: !!cooking, stock: stock === null ? null : Math.max(0, stock),
         image: image ? `/api/image?id=${image}` : '',
       })),

@@ -304,3 +304,18 @@ A customer who fills the cart and opens the payment page, but does not pay, has 
 - **Order confirmation**: after Billplz confirms the payment, the customer's order page shows a green
   "✅ Order confirmed" box with the amount, the time and the Billplz receipt number. Without payment the page
   says "Not confirmed yet" and never shows that box. Ask a customer for this page if there is any doubt.
+
+## Your own choices on an item (e.g. chicken: skin on / skin off)
+
+Menu → tap the item → **Your own choices for this item** → "+ Add a choice".
+
+- Name: `Skin`. Choices, with a comma between: `Skin on, Skin off`. Up to 6 choices-groups per item, 10 choices each.
+- "Customer must choose" ticked: the customer cannot add the item without picking one.
+- Only that item gets the choice. Add it to each chicken item that needs it.
+- What the customer picked shows on the cart, the order, the dashboard and the sticker ("Skin off").
+
+## Different hours on some days (e.g. Sunday 9 am to 1 pm)
+
+Settings → Ordering hours → **Different hours on some days**: tick the day and set its two times, then Save.
+Days not ticked use "Open from" and "Last order at". The shop's open/closed message, pickup times, advance
+delivery times and the end-of-day summary all follow each day's own hours. "Closed on" still closes a whole day.

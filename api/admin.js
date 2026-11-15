@@ -15,7 +15,7 @@ const push = require('../lib/push');
 const activity = require('../lib/activity');
 const { insights, summarize, rangeOf, lalamoveCostSen } = require('../lib/insights');
 const daily = require('../lib/daily');
-const { UNITS, normalizePhone, prettyPhone, shopOpen, mytParts, fmtTime, rm, fmtQty } = require('../lib/util');
+const { UNITS, dayHours, normalizePhone, prettyPhone, shopOpen, mytParts, fmtTime, rm, fmtQty } = require('../lib/util');
 
 const num = (v, d = 0) => (isFinite(parseFloat(v)) ? parseFloat(v) : d);
 const str = (v, n = 200) => String(v ?? '').trim().slice(0, n);
@@ -217,7 +217,7 @@ const actions = {
     const s = await store.getSettings(); const now = Date.now();
     let until = 0; let what;
     if (b.minutes === 'today') {
-      const [h, m] = String(s.hours.close).split(':').map(Number);
+      const [h, m] = String(dayHours(s, mytParts(now).day).close).split(':').map(Number);
       until = Date.parse(`${mytParts(now).date}T${String(h).padStart(2, '0')}:${String(m || 0).padStart(2, '0')}:00+08:00`);
       if (until <= now) until = now + 3600000;
       what = 'for the rest of today';
@@ -450,6 +450,7 @@ const actions = {
         price: Math.max(0, Math.round(num(p.price) * 100) / 100), unit, step, min: Math.max(step, num(p.min, step)),
         cutModes: (Array.isArray(p.cutModes) ? p.cutModes : []).filter((m) => store.CUT_MODES.includes(m)),
         cooking: !!p.cooking,
+        options: store.cleanOptions(p.options),
         weightKg: unit === 'kg' ? 0 : Math.max(0, Math.min(50, Math.round(num(p.weightKg) * 100) / 100)), // weight of one (for choosing bike or car)
         image: current[id]?.image || '', available: p.available !== false, sort: i,
       };
@@ -572,7 +573,11 @@ const actions = {
       whatsapp: String(normalizePhone(s.whatsapp) || cur.whatsapp).replace('+', ''),
       whatsappSet: true, pickupWeek: true,
       acceptingOrders: s.acceptingOrders !== false,
-      hours: { open: hhmm(s.hours?.open, cur.hours.open), close: hhmm(s.hours?.close, cur.hours.close), closedDays: (s.hours?.closedDays || []).map(Number).filter((d) => d >= 0 && d <= 6) },
+      hours: {
+        open: hhmm(s.hours?.open, cur.hours.open), close: hhmm(s.hours?.close, cur.hours.close), closedDays: (s.hours?.closedDays || []).map(Number).filter((d) => d >= 0 && d <= 6),
+        // days with their own hours, e.g. { 0: { open: '09:00', close: '13:00' } } for a short Sunday
+        days: Object.fromEntries(Object.entries(s.hours?.days || {}).filter(([d, v]) => /^[0-6]$/.test(d) && v && hhmm(v.open, '') && hhmm(v.close, '') && hhmm(v.open, '') < hhmm(v.close, '')).map(([d, v]) => [d, { open: hhmm(v.open, ''), close: hhmm(v.close, '') }])),
+      },
       prepMinutes: Math.max(0, Math.min(600, Math.round(num(s.prepMinutes, cur.prepMinutes)))),
       requireMember: !!(s.requireMember ?? cur.requireMember),
       payMinutes: Math.max(10, Math.min(720, Math.round(num(s.payMinutes, cur.payMinutes)))),

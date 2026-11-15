@@ -45,7 +45,7 @@
   function cutText(cut) {
     if (!cut) return '';
     const how = { size: () => sizeText(cut.size), weight: () => `${parseFloat(cut.weight)} g per piece`, split: () => `Cut each into ${cut.split}`, count: () => `${cut.count} pieces`, thickness: () => `${cut.thickness} thick` }[cut.by];
-    return [how ? how() : '', cut.cooking, cut.note ? `“${cut.note}”` : ''].filter(Boolean).join(' · ');
+    return [...Object.values(cut.opts || {}), how ? how() : '', cut.cooking, cut.note ? `“${cut.note}”` : ''].filter(Boolean).join(' · ');
   }
   // most of a product the customer can still add (max per order), not counting the line being edited
   function roomFor(p, exceptKey) {
@@ -124,7 +124,7 @@
               <div class="name">${esc(p.name)}</div>
               ${p.note ? `<div class="note">${esc(p.note)}</div>` : ''}
               <div class="price">RM ${Number(p.price).toFixed(2)}<small>${unitText(p.unit)}</small></div>
-              ${p.cuts ? '<div class="cuttag">✂ Choose your cut</div>' : ''}
+              ${p.cuts ? `<div class="cuttag">${(p.cutModes || []).length || p.cooking ? '✂ Choose your cut' : `Choose: ${esc((p.options || []).map((g) => g.name).join(', '))}`}</div>` : ''}
               ${p.stock != null && (soldOut(p) || p.stock <= 5) ? `<div class="left ${soldOut(p) ? 'out' : ''}">${esc(maxText(p))}</div>` : ''}
             </div>
             <div class="ctl"></div>
@@ -190,10 +190,10 @@
     const p = products[id]; if (!p) return;
     const c = catalog.cutting || {};
     const modes = p.cutModes || [];
-    item = { p, qty: Number(p.min) || Number(p.step) || 1, by: modes.length === 1 && !p.cooking ? modes[0] : '', size: '', sizeCustom: '', weight: '', weightCustom: '', split: '', count: '', thickness: '', thicknessCustom: '', cooking: '', note: '', editKey: '' };
+    item = { p, qty: Number(p.min) || Number(p.step) || 1, by: modes.length === 1 && !p.cooking ? modes[0] : '', size: '', sizeCustom: '', weight: '', weightCustom: '', split: '', count: '', thickness: '', thicknessCustom: '', cooking: '', note: '', editKey: '', opts: {} };
     if (line) {
       const cut = line.cut || {};
-      Object.assign(item, { qty: line.qty, editKey: line.key, by: cut.by || item.by, cooking: cut.cooking || '', note: cut.note || '' });
+      Object.assign(item, { qty: line.qty, editKey: line.key, by: cut.by || item.by, cooking: cut.cooking || '', note: cut.note || '', opts: { ...(cut.opts || {}) } });
       const inList = (list, v) => (list || []).map(String).some((x) => x.toLowerCase() === String(v).toLowerCase());
       if (cut.by === 'size') { if (inList(c.sizes, cut.size)) item.size = cut.size; else { item.size = 'custom'; item.sizeCustom = cut.size; } }
       if (cut.by === 'weight') { const g = String(parseFloat(cut.weight)); if (inList(c.weights, g)) item.weight = g; else { item.weight = 'custom'; item.weightCustom = g; } }
@@ -232,8 +232,11 @@
       else if (modes.length) howHTML = `<h5>How should we cut it?</h5>
           <div class="opts">${chip('data-by', '', !item.by, 'No preference')}${modes.map((m) => chip('data-by', m, item.by === m, MODE_LABEL[m])).join('')}</div>
           ${modeOptions(item.by)}`;
+      // the shop's own choices for this item (e.g. Skin on / Skin off)
+      const ownHTML = (p.options || []).map((g, gi) => `<h5>${esc(g.name)}${g.required ? '' : ' <i>(optional)</i>'}</h5><div class="opts">${g.choices.map((v) => `<button type="button" class="opt ${item.opts[g.name] === v ? 'on' : ''}" data-og="${gi}" data-ov="${esc(v)}">${esc(v)}</button>`).join('')}</div>`).join('');
       cutHTML = `
         <div class="cutbox">
+          ${ownHTML}
           ${howHTML}
           ${p.cooking && (c.cooking || []).length ? `<h5>Cooking style <i>(optional)</i></h5><div class="opts">${(c.cooking || []).map((k) => chip('data-cook', k, item.cooking === k, k)).join('')}</div>` : ''}
           <h5>Comment <i>(optional)</i></h5>
@@ -268,7 +271,8 @@
       const next = Math.round((item.qty + Number(d.iq) * step) * 100) / 100;
       if (Number(d.iq) > 0 && next > room + 1e-9) return toast(`${maxText(item.p)}.`);
       item.qty = Math.min(50, Math.max(min, next));
-    } else if ('by' in d) { item.by = d.by; }
+    } else if (d.og !== undefined) { const g = item.p.options[Number(d.og)]; if (item.opts[g.name] === d.ov && !g.required) delete item.opts[g.name]; else item.opts[g.name] = d.ov; }
+    else if ('by' in d) { item.by = d.by; }
     else if (d.size) item.size = d.size;
     else if (d.weight) item.weight = d.weight;
     else if (d.split) item.split = item.split === d.split && !singleMode(item.p) ? '' : d.split;
@@ -287,6 +291,9 @@
     let cut = null;
     if (p.cuts) {
       cut = { by: item.by, cooking: item.cooking, note: item.note.trim().slice(0, 120) };
+      const missing = (p.options || []).find((g) => g.required && !item.opts[g.name]);
+      if (missing) return toast(`Please choose: ${missing.name} (${missing.choices.join(' or ')})`);
+      if (Object.keys(item.opts).length) cut.opts = { ...item.opts };
       if (item.by === 'size') {
         cut.size = item.size === 'custom' ? item.sizeCustom.trim().slice(0, 30) : item.size;
         if (!cut.size) return toast(item.size === 'custom' ? 'Type the piece size you want.' : 'Choose a piece size.');
@@ -310,7 +317,7 @@
         if (!cut.thickness) return toast(item.thickness === 'custom' ? 'Type the slice thickness.' : 'Choose a slice thickness.');
       }
       for (const k of Object.keys(cut)) if (!cut[k]) delete cut[k];
-      if (!cut.by && !cut.cooking && !cut.note) cut = null;
+      if (!cut.by && !cut.cooking && !cut.note && !cut.opts) cut = null;
     }
     const got = addToCart(p.id, item.qty, cut, item.editKey);
     if (!got) toast(`${p.name}: ${maxText(p).toLowerCase()}.`);

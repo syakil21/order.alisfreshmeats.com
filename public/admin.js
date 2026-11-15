@@ -563,6 +563,14 @@
         <div class="modes">${MODES.map(([k, l]) => `<label class="ck"><input type="checkbox" data-mode="${k}" ${(p.cutModes || []).includes(k) ? 'checked' : ''}> ${l}</label>`).join('')}
           <label class="ck"><input type="checkbox" data-k="cooking" ${p.cooking ? 'checked' : ''}> Cooking style</label></div>
         <p class="muted">The options come from Settings → Cutting choices. With only “Cut each into” ticked (marrow bones), the customer must pick 2 or 3 pcs.</p>
+        <h2 style="margin-top:16px">Your own choices for this item</h2>
+        <p class="muted">For things only this item has, e.g. chicken: name <b>Skin</b>, choices <b>Skin on, Skin off</b>. The customer picks one, and it prints on the sticker.</p>
+        <div id="pOpts">${(p.options || []).map((g, gi) => `<div class="optrow" data-og="${gi}">
+          <input class="inp" data-ok="name" maxlength="30" placeholder="Name, e.g. Skin" value="${esc(g.name || '')}">
+          <input class="inp" data-ok="choices" placeholder="Choices with a comma between: Skin on, Skin off" value="${esc(Array.isArray(g.choices) ? g.choices.join(', ') : g.choices || '')}">
+          <label class="ck"><input type="checkbox" data-ok="required" ${g.required ? 'checked' : ''}> Customer must choose</label>
+          <button class="btn sm red" type="button" data-orm="${gi}">Remove</button></div>`).join('')}</div>
+        <button class="btn sm" type="button" id="pOptAdd">+ Add a choice</button>
         <label class="ck" style="margin-top:8px"><input type="checkbox" data-k="available" ${p.available ? 'checked' : ''}> On sale</label>
       </div>
       <div class="row"><button class="btn sm" type="button" data-mv="-1">↑ Move up</button><button class="btn sm" type="button" data-mv="1">↓ Move down</button><span class="grow"></span><button class="btn red sm" type="button" id="pDel">Delete item</button></div>
@@ -570,8 +578,9 @@
       <div class="row" style="margin-top:14px"><button class="btn pri" type="button" id="pSave" style="flex:1">Save changes</button></div>`);
     const body = $('#drawerBody');
     body.oninput = (e) => { // (a property, not addEventListener: the editor is redrawn in place and must not stack handlers)
-      const k = e.target.dataset.k; const m = e.target.dataset.mode;
-      if (m) { const set = new Set(p.cutModes || []); e.target.checked ? set.add(m) : set.delete(m); p.cutModes = MODES.map((x) => x[0]).filter((x) => set.has(x)); }
+      const k = e.target.dataset.k; const m = e.target.dataset.mode; const ok = e.target.dataset.ok;
+      if (ok) { const g = p.options[Number(e.target.closest('[data-og]').dataset.og)]; g[ok] = e.target.type === 'checkbox' ? e.target.checked : e.target.value; }
+      else if (m) { const set = new Set(p.cutModes || []); e.target.checked ? set.add(m) : set.delete(m); p.cutModes = MODES.map((x) => x[0]).filter((x) => set.has(x)); }
       else if (k) {
         p[k] = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
         if (k === 'unit') { p.step = p.unit === 'kg' ? 0.5 : 1; p.min = p.step; markDirty(); renderProducts(); return editProduct(i); }
@@ -580,6 +589,8 @@
       markDirty(); renderProducts();
     };
     body.onchange = (e) => { if (e.target.type === 'checkbox' || e.target.tagName === 'SELECT') e.target.dispatchEvent(new Event('input', { bubbles: true })); };
+    $('#pOptAdd').onclick = () => { p.options = [...(p.options || []), { name: '', choices: '', required: true }]; markDirty(); editProduct(i); body.querySelector('#pOpts .optrow:last-child [data-ok="name"]')?.focus(); };
+    body.querySelectorAll('[data-orm]').forEach((b) => (b.onclick = () => { p.options.splice(Number(b.dataset.orm), 1); markDirty(); editProduct(i); }));
     $('#pPhoto').onclick = () => { if (!p.id) return toast('Save the new item first, then add its photo.'); photoFor = p.id; $('#photoFile').value = ''; $('#photoFile').click(); };
     if ($('#pNoPhoto')) $('#pNoPhoto').onclick = (e) => confirm(`Remove the photo of ${p.name}?`) && busy(e.target, async () => { mergeImages((await api('products.imageRemove', { id: p.id })).products); editProduct(i); });
     body.querySelectorAll('[data-pstocksave]').forEach((btn) => (btn.onclick = () => askStock(p, btn.dataset.pstocksave, body.querySelector(`[data-pstock="${btn.dataset.pstocksave}"]`).value)));
@@ -899,8 +910,20 @@
     const f = $('#settingsForm');
     for (const el of f.querySelectorAll('[name]')) { const v = getPath(settings, el.name); if (el.type === 'checkbox') el.checked = !!v; else el.value = el.name === 'whatsapp' ? prettyPhone(`+${v}`) : Array.isArray(v) ? v.join(', ') : v ?? ''; }
     $('#closedDays').innerHTML = DAYS.map((d, i) => `<button type="button" class="chip ${settings.hours.closedDays.includes(i) ? 'on' : ''}" data-day="${i}">${d}</button>`).join('');
+    renderDayHours();
     renderBranches();
   }
+  // days with their own hours (e.g. Sunday 9:00am to 1:00pm); other days use "Open from / Last order at"
+  function renderDayHours() {
+    settings.hours.days = settings.hours.days || {};
+    $('#dayHours').innerHTML = DAYS.map((d, i) => { const h = settings.hours.days[i]; return `<div class="dayrow"><label class="ck"><input type="checkbox" data-dh="${i}" ${h ? 'checked' : ''}> ${d}</label>${h ? `<input class="inp" type="time" data-dho="${i}" value="${esc(h.open)}"><span>to</span><input class="inp" type="time" data-dhc="${i}" value="${esc(h.close)}">` : '<span class="muted">usual hours</span>'}</div>`; }).join('');
+  }
+  $('#dayHours').addEventListener('input', (e) => {
+    const t = e.target.dataset; const days = settings.hours.days;
+    if (t.dh !== undefined) { if (e.target.checked) days[t.dh] = { open: $('[name="hours.open"]').value || settings.hours.open, close: $('[name="hours.close"]').value || settings.hours.close }; else delete days[t.dh]; renderDayHours(); }
+    else if (t.dho !== undefined) days[t.dho].open = e.target.value;
+    else if (t.dhc !== undefined) days[t.dhc].close = e.target.value;
+  });
   $('#closedDays').addEventListener('click', (e) => {
     const b = e.target.closest('[data-day]'); if (!b) return; const d = Number(b.dataset.day); const cd = settings.hours.closedDays;
     settings.hours.closedDays = cd.includes(d) ? cd.filter((x) => x !== d) : [...cd, d]; b.classList.toggle('on');

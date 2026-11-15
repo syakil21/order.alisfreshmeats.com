@@ -252,6 +252,42 @@ const { PDFDocument } = require('pdf-lib');
     console.log('✓ Advance delivery times (hourly, up to 7 days, closed days skipped)');
   }
 
+  // ---- a day with its own hours (short Sunday) ----
+  {
+    const { dayHours, pickupSlots, deliverySlots, nextOpenAt } = require('../lib/util');
+    const st = { ...DEFAULT_SETTINGS, prepMinutes: 30, preorder: { enabled: true }, advance: { enabled: true, days: 7 }, pickup: { enabled: true, slotMinutes: 30, days: 7 }, hours: { open: '09:00', close: '18:00', closedDays: [], days: { 0: { open: '09:00', close: '13:00' } } } };
+    const at = (s) => Date.parse(`${s}+08:00`); // 15 Nov 2026 is a Sunday
+    assert.deepStrictEqual([dayHours(st, 0).close, dayHours(st, 1).close, dayHours(st, 0).own, dayHours(st, 1).own], ['13:00', '18:00', true, false]);
+    assert.strictEqual(shopOpen(st, at('2026-11-15T12:30:00')).message, 'Open for orders until 1:00pm');
+    const sunPm = shopOpen(st, at('2026-11-15T14:00:00'));
+    assert.strictEqual(sunPm.open, false, 'Sunday 2pm is closed'); assert.strictEqual(sunPm.nextOpenAt, at('2026-11-16T09:00:00'));
+    assert.strictEqual(shopOpen(st, at('2026-11-16T14:00:00')).open, true, 'Monday 2pm is open');
+    const sat = at('2026-11-14T10:00:00');
+    const pk = pickupSlots(st, sat); const tomorrow = pk.filter((x) => x.day === 'Tomorrow');
+    assert.strictEqual(tomorrow[0].time, '9:00am'); assert.strictEqual(tomorrow.pop().time, '1:00pm', 'Sunday pickup ends at 1pm');
+    assert.strictEqual(pk.filter((x) => x.day === 'Today').pop().time, '6:00pm');
+    assert.strictEqual(deliverySlots(st, sat).filter((x) => x.day === 'Tomorrow').pop().time, '1:00pm', 'Sunday delivery ends at 1pm');
+    assert.strictEqual(nextOpenAt({ ...st, hours: { ...st.hours, days: { 1: { open: '11:00', close: '18:00' } } } }, at('2026-11-15T20:00:00')), at('2026-11-16T11:00:00'), 'a late-opening Monday');
+    console.log('✓ A day with its own hours (Sunday 9am to 1pm)');
+  }
+
+  // ---- the owner's own choices on an item (chicken: skin on / off) ----
+  {
+    const { normalizeCut, cutSummary } = require('../lib/cuts');
+    const { cleanOptions } = require('../lib/store');
+    const options = cleanOptions([{ name: ' Skin ', choices: 'Skin on, Skin off, skin off', required: true }, { name: 'Bad', choices: 'only one' }, { name: 'Pieces', choices: ['Whole', 'Cut 8', 'Cut 12'] }]);
+    assert.deepStrictEqual(options, [{ name: 'Skin', choices: ['Skin on', 'Skin off'], required: true }, { name: 'Pieces', choices: ['Whole', 'Cut 8', 'Cut 12'], required: false }], 'tidied: trimmed, repeats and one-choice groups dropped');
+    const chicken = { name: 'Whole Chicken', cuts: true, cutModes: [], cooking: false, options };
+    const st = DEFAULT_SETTINGS;
+    assert.ok(/Please choose skin \(Skin on or Skin off/.test(normalizeCut(null, chicken, st).error), 'a required choice cannot be skipped');
+    assert.ok(/from the list/.test(normalizeCut({ opts: { Skin: 'Half skin' } }, chicken, st).error));
+    const c = normalizeCut({ opts: { Skin: 'skin OFF', Pieces: 'Cut 8', Hacked: 'x' }, note: 'clean well' }, chicken, st).cut;
+    assert.deepStrictEqual(c.opts, { Skin: 'Skin off', Pieces: 'Cut 8' });
+    assert.strictEqual(cutSummary(c), 'Skin off · Cut 8 · "clean well"');
+    assert.strictEqual(normalizeCut({ opts: { Skin: 'Skin on' } }, { name: 'Lamb', cuts: true, cutModes: ['size'], cooking: true, options: [] }, st).cut, null, 'items without the choice ignore it');
+    console.log('✓ Own choices on an item (Skin on / Skin off), required and optional');
+  }
+
   // ---- small order fee (uses the in-memory database) ----
   {
     process.env.ALLOW_MEMORY_DB = '1';

@@ -319,3 +319,13 @@ Menu → tap the item → **Your own choices for this item** → "+ Add a choice
 Settings → Ordering hours → **Different hours on some days**: tick the day and set its two times, then Save.
 Days not ticked use "Open from" and "Last order at". The shop's open/closed message, pickup times, advance
 delivery times and the end-of-day summary all follow each day's own hours. "Closed on" still closes a whole day.
+
+## Which shop sends a delivery
+
+The system suggests the nearest shop that has everything in the cart. When both shops deliver to the customer's
+address, the checkout shows **Send from which shop?** with each shop's delivery fee, so the customer can switch.
+
+- If the nearest shop is out of an item (its stock is 0), the order is suggested from the other shop and the
+  delivery fee is higher. The customer sees why, and can remove the item or accept the other shop.
+- So if a Selayang customer is sent from Brickfields, check that item's **Selayang stock** in the Menu:
+  empty = no limit (always available), 0 = sold out at Selayang.

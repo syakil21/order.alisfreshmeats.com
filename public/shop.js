@@ -24,6 +24,7 @@
   let fulfilment = prefs.fulfilment === 'pickup' ? 'pickup' : 'delivery';
   let deliveryOption = 'regular';
   let pickupBranchId = prefs.pickupBranchId || ''; let pickupDay = ''; let pickupAt = '';
+  let deliverBranchId = ''; // '' = let the shop suggest; otherwise the branch the customer chose for delivery
   let when = 'now'; let deliverDay = ''; let deliverAt = ''; // delivery now, or an advance order for a later day and time
   let usePoints = false;
   let quote = null; let quoteSeq = 0; let quoteTimer = null; let paying = false; let quoting = false;
@@ -478,7 +479,25 @@
     else if (t.dataset.dday) { deliverDay = t.dataset.dday; renderWhen(); }
     else if (t.dataset.dslot) { deliverAt = t.dataset.dslot; renderWhen(); scheduleQuote(0); }
   });
+  // ---- which shop sends the delivery (only when more than one shop delivers to the address) ----
+  function renderFrom() {
+    const list = (fulfilment === 'delivery' && quote?.fulfilment === 'delivery' && quote.branchChoices) || [];
+    $('#fromBox').hidden = list.length < 2;
+    if (list.length < 2) return;
+    const cur = quote.branch?.id;
+    $('#fromSeg').innerHTML = list.map((b) => `<button type="button" class="opt ${b.id === cur ? 'on' : ''}" data-from="${esc(b.id)}">${esc(b.name)}${b.feeSen != null ? ` · ${rm(b.feeSen)}` : ''}${b.suggested ? ' · suggested' : ''}</button>`).join('');
+    const me2 = list.find((b) => b.id === cur); const other = list.find((b) => b.id !== cur);
+    const msg = $('#fromMsg');
+    if (me2 && !me2.hasAll) { msg.className = 'msg err'; msg.textContent = `Our ${me2.name} shop does not have everything in your cart. Choose ${other.name}, or remove the item marked below.`; }
+    else if (other && !other.hasAll) { msg.className = 'msg'; msg.textContent = `Our ${other.name} shop does not have everything in your cart right now.`; }
+    else { msg.className = 'msg'; msg.textContent = 'Delivery is charged by the distance from the shop you choose.'; }
+  }
+  $('#fromBox').addEventListener('click', (e) => {
+    const t = e.target.closest('[data-from]'); if (!t) return;
+    deliverBranchId = t.dataset.from; scheduleQuote(0);
+  });
   function renderSpeed() {
+    renderFrom();
     renderWhen();
     const box = $('#speed');
     const opts = fulfilment === 'delivery' && quote?.deliveryOptions || [];
@@ -527,7 +546,7 @@
         method: 'POST', headers: { 'Content-Type': 'application/json', ...auth() },
         body: JSON.stringify({
           items: cart.map(({ productId, qty, cut }) => ({ productId, qty, cut })), phone: $('#phone').value, couponCode,
-          fulfilment, deliveryOption, pickupBranchId, pickupAt, usePoints, deliverAt: fulfilment === 'delivery' && when === 'later' ? deliverAt : '',
+          fulfilment, deliveryOption, pickupBranchId, pickupAt, usePoints, deliverAt: fulfilment === 'delivery' && when === 'later' ? deliverAt : '', branchId: fulfilment === 'delivery' ? deliverBranchId : '',
           location: fulfilment === 'delivery' && addr ? { lat: addr.lat, lng: addr.lng, address: addr.text } : null,
         }),
       });
@@ -629,7 +648,7 @@
         method: 'POST', headers: { 'Content-Type': 'application/json', ...auth() },
         body: JSON.stringify({
           items: cart.map(({ productId, qty, cut }) => ({ productId, qty, cut })),
-          customer, couponCode, fulfilment, deliveryOption, pickupBranchId, pickupAt, usePoints, deliverAt: fulfilment === 'delivery' && when === 'later' ? deliverAt : '',
+          customer, couponCode, fulfilment, deliveryOption, pickupBranchId, pickupAt, usePoints, deliverAt: fulfilment === 'delivery' && when === 'later' ? deliverAt : '', branchId: fulfilment === 'delivery' ? deliverBranchId : '',
           address: fulfilment === 'pickup'
             ? { notes: $('#pickupNotes').value.trim() }
             : { text: addr.text, lat: addr.lat, lng: addr.lng, unit: $('#unit').value.trim(), notes: $('#notes').value.trim() },

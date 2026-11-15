@@ -123,6 +123,22 @@ const HOME = { lat: 3.2080, lng: 101.6370, text: '12 Jalan Kepong Baru, 52100 Ku
   const h4 = (await A('home')).d.orders.find((x) => x.id === o4.id);
   ok(h4.board === 'preparing' && h4.preorder && h4.pickupAt === slot.at && !h4.problem, 'dashboard has it as a later order with no problem flag');
 
+  // ---------- which shop sends the delivery ----------
+  const cart1 = [{ productId: 'boneless-meat', qty: 1 }, { productId: 'spleen', qty: 1 }];
+  q = (await J('/api/quote', { items: cart1, fulfilment: 'delivery', location: loc })).d;
+  const near = q.branchChoices?.find((x) => x.suggested); const far = q.branchChoices?.find((x) => !x.suggested);
+  ok(q.branchChoices?.length === 2 && q.branch.id === near.id && near.km < far.km && near.feeSen < far.feeSen && near.hasAll && far.hasAll, `two shops deliver here: ${near?.name} ${near?.km} km RM${(near?.feeSen / 100).toFixed(2)} (suggested), ${far?.name} ${far?.km} km RM${(far?.feeSen / 100).toFixed(2)}`);
+  let q2 = (await J('/api/quote', { items: cart1, fulfilment: 'delivery', location: loc, branchId: far.id })).d;
+  ok(q2.branch.id === far.id && q2.deliverySen === far.feeSen && !q2.branchNote, `the customer can choose ${far.name} instead and pays its delivery fee`);
+  await A('stock.set', { id: 'spleen', branchId: near.id, qty: 0 });
+  q2 = (await J('/api/quote', { items: cart1, fulfilment: 'delivery', location: loc })).d;
+  ok(q2.branch.id === far.id && /has run out of something/.test(q2.branchNote) && q2.branchChoices.find((x) => x.id === near.id).hasAll === false && q2.branchSuggested === far.id, `${near.name} out of spleen: the order is suggested from ${far.name}, with a note saying why`);
+  q2 = (await J('/api/quote', { items: cart1, fulfilment: 'delivery', location: loc, branchId: near.id })).d;
+  ok(q2.branch.id === near.id && q2.errors.some((e) => /Spleen is sold out at our/.test(e)), `choosing ${near.name} anyway shows: "${q2.errors[0]}"`);
+  const viaFar = await J('/api/checkout', { items: cart1, fulfilment: 'delivery', branchId: far.id, customer: { name: 'Chooses Shop', phone: '0121110012' }, address: HOME });
+  ok(viaFar.status === 200 && (await A('order.get', { id: viaFar.d.orderId })).d.order.branchId === far.id, 'checkout keeps the shop the customer chose');
+  await A('stock.set', { id: 'spleen', branchId: near.id, qty: '' });
+
   // ---------- browser: shop, fee, Bahasa Melayu ----------
   const browser = await chromium.launch({ args: ['--no-sandbox'] });
   const ctx = await browser.newContext({ viewport: { width: 420, height: 900 }, locale: 'en-MY' });
@@ -165,6 +181,18 @@ const HOME = { lat: 3.2080, lng: 101.6370, text: '12 Jalan Kepong Baru, 52100 Ku
   await p.click('.item[data-id="boneless-meat"] [data-open]'); await p.click('#itemAdd');
   await p.click('#openCart'); await p.waitForSelector('#whenBox:not([hidden]) [data-when="later"]', { timeout: 20000 });
   ok(/As soon as possible/.test(await p.textContent('#whenSeg')) && await p.isHidden('#laterBox'), 'checkout asks "When do you want it?" with "As soon as possible" chosen');
+  const fromText = await p.textContent('#fromSeg');
+  ok(await p.isVisible('#fromBox') && fromText.includes(`${near.name} · RM`) && fromText.includes('suggested') && fromText.includes(`${far.name} · RM`), `checkout shows "Send from which shop?": ${fromText.replace(/\s+/g, ' ').trim()}`);
+  await p.waitForFunction(() => /^Pay RM/.test(document.querySelector('#payBtn').textContent));
+  const feeBefore = (await p.textContent('#payBtn')).match(/RM ([\d.]+)/)?.[1];
+  await p.click(`[data-from="${far.id}"]`);
+  await p.waitForFunction((id) => document.querySelector(`[data-from="${id}"]`)?.classList.contains('on'), far.id, { timeout: 15000 });
+  await p.waitForFunction(() => /^Pay RM/.test(document.querySelector('#payBtn').textContent));
+  const feeAfter = (await p.textContent('#payBtn')).match(/RM ([\d.]+)/)?.[1];
+  ok(Number(feeAfter) > Number(feeBefore), `picking ${far.name} raises the total from RM${feeBefore} to RM${feeAfter} (its delivery fee)`);
+  await p.screenshot({ path: `${OUT}/28-choose-shop.png` });
+  await p.click(`[data-from="${near.id}"]`);
+  await p.waitForFunction((id) => document.querySelector(`[data-from="${id}"]`)?.classList.contains('on'), near.id, { timeout: 15000 });
   await p.click('[data-when="later"]');
   await p.waitForFunction(() => document.querySelector('#payBtn').textContent.trim() === 'Choose a delivery time', null, { timeout: 15000 }).catch(() => {});
   ok((await p.textContent('#payBtn')).trim() === 'Choose a delivery time' && await p.isDisabled('#payBtn'), 'choosing later: Pay waits for a time');

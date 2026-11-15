@@ -27,7 +27,7 @@ module.exports = handler(async (req, res) => {
   const { result: q, settings, phone, status } = await buildQuote({
     items: b.items, phone: c.phone, couponCode: b.couponCode, member,
     location: pickup ? null : { lat: a.lat, lng: a.lng, address: a.text },
-    fulfilment: b.fulfilment, deliveryOption: b.deliveryOption, pickupBranchId: b.pickupBranchId, pickupAt: b.pickupAt, deliverAt: pickup ? '' : b.deliverAt, usePoints: !!b.usePoints,
+    fulfilment: b.fulfilment, deliveryOption: b.deliveryOption, pickupBranchId: b.pickupBranchId, pickupAt: b.pickupAt, deliverAt: pickup ? '' : b.deliverAt, branchId: pickup ? '' : b.branchId, usePoints: !!b.usePoints,
   });
   if (!status.open && !status.preorder) return bad(res, status.message);
   if (settings.requireMember && !member) return send(res, 401, { error: 'Please log in or sign up to place your order.', needLogin: true });
